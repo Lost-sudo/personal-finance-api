@@ -3,6 +3,7 @@ import { AppModule } from './app.module.js';
 import { ConfigService } from '@nestjs/config';
 import { configureApp } from './app.setup.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -26,7 +27,8 @@ async function bootstrap() {
 
   SwaggerModule.setup('docs', app, documentFactory);
 
+  app.useGlobalFilters(new GlobalExceptionFilter());
+
   await app.listen(port);
-  console.log(`Personal Finance API is running on: http://localhost:${port}`);
 }
 await bootstrap();

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -205,12 +206,17 @@ export class CategoriesController {
     schema: apiResponseSchema(categorySchema),
   })
   @ApiResponse({
+    status: 400,
+    description: 'Invalid category id.',
+    schema: validationErrorSchema,
+  })
+  @ApiResponse({
     status: 404,
     description: 'Category not found.',
     schema: notFoundErrorSchema,
   })
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const result = await this.categoriesService.findOne(
       DEVELOPMENT_USER_ID,
       id,
@@ -273,7 +279,7 @@ export class CategoriesController {
   })
   @Patch(':id')
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(updateCategorySchema))
     dto: UpdateCategoryDto,
   ) {
@@ -300,13 +306,18 @@ export class CategoriesController {
     description: 'Category successfully archived. No response body.',
   })
   @ApiResponse({
+    status: 400,
+    description: 'Invalid category id.',
+    schema: validationErrorSchema,
+  })
+  @ApiResponse({
     status: 404,
     description: 'Category not found.',
     schema: notFoundErrorSchema,
   })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async archive(@Param('id') id: string) {
+  async archive(@Param('id', ParseUUIDPipe) id: string) {
     await this.categoriesService.archive(DEVELOPMENT_USER_ID, id);
   }
 }

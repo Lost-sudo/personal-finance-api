@@ -320,6 +320,12 @@ describe('Categories E2E', () => {
         .get(`/api/v1/categories/${nonexistentId}`)
         .expect(404);
     });
+
+    it('should return 400 for a malformed category id', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/categories/123')
+        .expect(400);
+    });
   });
 
   describe('PATCH /api/v1/categories/:id', () => {
@@ -373,6 +379,15 @@ describe('Categories E2E', () => {
         })
         .expect(404);
     });
+
+    it('should return 400 when updating with a malformed category id', async () => {
+      await request(app.getHttpServer())
+        .patch('/api/v1/categories/123')
+        .send({
+          name: 'Updated',
+        })
+        .expect(400);
+    });
   });
 
   describe('DELETE /api/v1/categories/:id', () => {
@@ -402,6 +417,12 @@ describe('Categories E2E', () => {
       await request(app.getHttpServer())
         .delete(`/api/v1/categories/${nonexistentId}`)
         .expect(404);
+    });
+
+    it('should return 400 when archiving with a malformed category id', async () => {
+      await request(app.getHttpServer())
+        .delete('/api/v1/categories/123')
+        .expect(400);
     });
 
     it('should not allow an archived category to be retrieved', async () => {
