@@ -2,8 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { ConfigService } from '@nestjs/config';
 import { configureApp } from './app.setup.js';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
+import { createSwaggerConfig } from './config/swagger.config.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,19 +14,11 @@ async function bootstrap() {
 
   configureApp(app);
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Personal Finance & Expense Management API')
-    .setDescription(
-      'REST API for managing personal finance, expenses, categories, accounts, budgets, recurring financial records, and financial reports.',
-    )
-    .setVersion('1.0')
-    .addTag('Categories', 'Income and expense category management')
-    .build();
+  const swaggerConfig = createSwaggerConfig();
 
-  const documentFactory = () =>
-    SwaggerModule.createDocument(app, swaggerConfig);
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig.build());
 
-  SwaggerModule.setup('docs', app, documentFactory);
+  SwaggerModule.setup('api/docs', app, swaggerDocument);
 
   app.useGlobalFilters(new GlobalExceptionFilter());
 
