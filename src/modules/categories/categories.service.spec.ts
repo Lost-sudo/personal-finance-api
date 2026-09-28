@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { CategoriesService } from './categories.service.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
+import { CategoryQueryDto } from './dto/category-query.dto.js';
 
 describe('CategoriesService', () => {
   let service: CategoriesService;
@@ -16,6 +17,7 @@ describe('CategoriesService', () => {
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      count: vi.fn(),
     },
   };
 
@@ -110,8 +112,15 @@ describe('CategoriesService', () => {
   });
 
   describe('findAll', () => {
-    it('should return active categories belonging to the user', async () => {
+    it('should return paginated categories belonging to the user', async () => {
       const userId = 'user-1';
+
+      const query: CategoryQueryDto = {
+        page: 1,
+        limit: 20,
+        sortBy: 'name',
+        sortOrder: 'asc',
+      };
 
       const categories = [
         {
@@ -133,19 +142,245 @@ describe('CategoriesService', () => {
       ];
 
       prismaMock.category.findMany.mockResolvedValue(categories);
+      prismaMock.category.count.mockResolvedValue(categories.length);
 
-      const result = await service.findAll(userId);
+      const result = await service.findAll(userId, query);
 
-      expect(result).toEqual(categories);
+      expect(result).toEqual({
+        categories,
+        total: categories.length,
+      });
+
+      const where = {
+        userId,
+        isArchived: false,
+      };
 
       expect(prismaMock.category.findMany).toHaveBeenCalledWith({
-        where: {
-          userId,
-          isArchived: false,
-        },
+        where,
+        skip: 0,
+        take: 20,
         orderBy: {
           name: 'asc',
         },
+      });
+
+      expect(prismaMock.category.count).toHaveBeenCalledWith({
+        where,
+      });
+    });
+
+    it('should apply pagination and custom sorting', async () => {
+      const userId = 'user-1';
+
+      const query: CategoryQueryDto = {
+        page: 2,
+        limit: 10,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      const categories = [
+        {
+          id: 'category-2',
+          userId,
+          name: 'Salary',
+          type: 'INCOME',
+          color: '#4CAF50',
+          isArchived: false,
+        },
+      ];
+
+      prismaMock.category.findMany.mockResolvedValue(categories);
+      prismaMock.category.count.mockResolvedValue(11);
+
+      const result = await service.findAll(userId, query);
+
+      expect(result).toEqual({
+        categories,
+        total: 11,
+      });
+
+      const where = {
+        userId,
+        isArchived: false,
+      };
+
+      expect(prismaMock.category.findMany).toHaveBeenCalledWith({
+        where,
+        skip: 10,
+        take: 10,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      expect(prismaMock.category.count).toHaveBeenCalledWith({
+        where,
+      });
+    });
+
+    it('should filter categories by type', async () => {
+      const userId = 'user-1';
+
+      const query: CategoryQueryDto = {
+        page: 1,
+        limit: 20,
+        type: 'EXPENSE',
+        sortBy: 'name',
+        sortOrder: 'asc',
+      };
+
+      const categories = [
+        {
+          id: 'category-1',
+          userId,
+          name: 'Food',
+          type: 'EXPENSE',
+          color: '#FF9800',
+          isArchived: false,
+        },
+      ];
+
+      prismaMock.category.findMany.mockResolvedValue(categories);
+      prismaMock.category.count.mockResolvedValue(categories.length);
+
+      const result = await service.findAll(userId, query);
+
+      expect(result).toEqual({
+        categories,
+        total: categories.length,
+      });
+
+      const where = {
+        userId,
+        isArchived: false,
+        type: 'EXPENSE',
+      };
+
+      expect(prismaMock.category.findMany).toHaveBeenCalledWith({
+        where,
+        skip: 0,
+        take: 20,
+        orderBy: {
+          name: 'asc',
+        },
+      });
+
+      expect(prismaMock.category.count).toHaveBeenCalledWith({
+        where,
+      });
+    });
+
+    it('should filter categories by search term', async () => {
+      const userId = 'user-1';
+
+      const query: CategoryQueryDto = {
+        page: 1,
+        limit: 20,
+        search: 'Foo',
+        sortBy: 'name',
+        sortOrder: 'asc',
+      };
+
+      const categories = [
+        {
+          id: 'category-1',
+          userId,
+          name: 'Food',
+          type: 'EXPENSE',
+          color: '#FF9800',
+          isArchived: false,
+        },
+      ];
+
+      prismaMock.category.findMany.mockResolvedValue(categories);
+      prismaMock.category.count.mockResolvedValue(categories.length);
+
+      const result = await service.findAll(userId, query);
+
+      expect(result).toEqual({
+        categories,
+        total: categories.length,
+      });
+
+      const where = {
+        userId,
+        isArchived: false,
+        name: {
+          contains: 'Foo',
+          mode: 'insensitive',
+        },
+      };
+
+      expect(prismaMock.category.findMany).toHaveBeenCalledWith({
+        where,
+        skip: 0,
+        take: 20,
+        orderBy: {
+          name: 'asc',
+        },
+      });
+
+      expect(prismaMock.category.count).toHaveBeenCalledWith({
+        where,
+      });
+    });
+
+    it('should filter categories by type and search term', async () => {
+      const userId = 'user-1';
+
+      const query: CategoryQueryDto = {
+        page: 1,
+        limit: 20,
+        type: 'EXPENSE',
+        search: 'Foo',
+        sortBy: 'name',
+        sortOrder: 'asc',
+      };
+
+      const categories = [
+        {
+          id: 'category-1',
+          userId,
+          name: 'Food',
+          type: 'EXPENSE',
+          color: '#FF9800',
+          isArchived: false,
+        },
+      ];
+
+      prismaMock.category.findMany.mockResolvedValue(categories);
+      prismaMock.category.count.mockResolvedValue(categories.length);
+
+      const result = await service.findAll(userId, query);
+
+      expect(result).toEqual({
+        categories,
+        total: categories.length,
+      });
+
+      const where = {
+        userId,
+        isArchived: false,
+        type: 'EXPENSE',
+        name: {
+          contains: 'Foo',
+          mode: 'insensitive',
+        },
+      };
+
+      expect(prismaMock.category.findMany).toHaveBeenCalledWith({
+        where,
+        skip: 0,
+        take: 20,
+        orderBy: {
+          name: 'asc',
+        },
+      });
+
+      expect(prismaMock.category.count).toHaveBeenCalledWith({
+        where,
       });
     });
   });

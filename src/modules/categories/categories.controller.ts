@@ -3,9 +3,12 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -23,9 +26,26 @@ import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  type CategoryQueryDto,
+  categoryQuerySchema,
+} from './dto/category-query.dto.js';
+import {
+  paginatedResponse,
+  successResponse,
+} from '../../common/utils/api-response.js';
+import {
+  apiResponseSchema,
+  categorySchema,
+  conflictErrorSchema,
+  notFoundErrorSchema,
+  paginatedResponseSchema,
+  validationErrorSchema,
+} from '../../common/swagger/api-response.schema.js';
 
 @ApiTags('Categories')
 @Controller('categories')
@@ -65,38 +85,109 @@ export class CategoriesController {
   @ApiResponse({
     status: 201,
     description: 'Category successfully created.',
+    schema: apiResponseSchema(categorySchema),
   })
   @ApiResponse({
     status: 400,
     description: 'Invalid category data.',
+    schema: validationErrorSchema,
   })
   @ApiResponse({
     status: 409,
     description: 'A category with the same name and type already exists.',
+    schema: conflictErrorSchema,
   })
   @Post()
-  create(
+  async create(
     @Body(new ZodValidationPipe(createCategorySchema))
     dto: CreateCategoryDto,
   ) {
-    const userId = DEVELOPMENT_USER_ID;
+    const category = await this.categoriesService.create(
+      DEVELOPMENT_USER_ID,
+      dto,
+    );
 
-    return this.categoriesService.create(userId, dto);
+    return successResponse(category);
   }
 
   @ApiOperation({
     summary: 'List categories',
     description: 'Returns all active categories belonging to the current user.',
   })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number to retrieve.',
+    type: Number,
+    minimum: 1,
+    default: 1,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Number of categories per page.',
+    type: Number,
+    minimum: 1,
+    maximum: 100,
+    default: 20,
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'type',
+    description: 'Filter categories by type.',
+    enum: ['INCOME', 'EXPENSE'],
+    required: false,
+    example: 'EXPENSE',
+  })
+  @ApiQuery({
+    name: 'search',
+    description: 'Case-insensitive partial match on the category name.',
+    type: String,
+    minLength: 1,
+    maxLength: 100,
+    required: false,
+    example: 'Food',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    description: 'Field used to order the results.',
+    enum: ['name', 'createdAt'],
+    default: 'name',
+    example: 'name',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    description: 'Sort direction.',
+    enum: ['asc', 'desc'],
+    default: 'asc',
+    example: 'asc',
+  })
   @ApiResponse({
     status: 200,
     description: 'Categories successfully retrieved.',
+    schema: paginatedResponseSchema(categorySchema),
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid query parameters.',
+    schema: validationErrorSchema,
   })
   @Get()
-  findAll() {
-    const userId = DEVELOPMENT_USER_ID;
+  async findAll(
+    @Query(new ZodValidationPipe(categoryQuerySchema)) query: CategoryQueryDto,
+  ) {
+    const result = await this.categoriesService.findAll(
+      DEVELOPMENT_USER_ID,
+      query,
+    );
 
-    return this.categoriesService.findAll(userId);
+    const totalPages = Math.ceil(result.total / query.limit);
+
+    return paginatedResponse(result.categories, {
+      page: query.page,
+      limit: query.limit,
+      total: result.total,
+      totalPages,
+    });
   }
 
   @ApiOperation({
@@ -111,16 +202,21 @@ export class CategoriesController {
   @ApiResponse({
     status: 200,
     description: 'Category successfully retrieved.',
+    schema: apiResponseSchema(categorySchema),
   })
   @ApiResponse({
     status: 404,
     description: 'Category not found.',
+    schema: notFoundErrorSchema,
   })
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    const userId = DEVELOPMENT_USER_ID;
+  async findOne(@Param('id') id: string) {
+    const result = await this.categoriesService.findOne(
+      DEVELOPMENT_USER_ID,
+      id,
+    );
 
-    return this.categoriesService.findOne(userId, id);
+    return successResponse(result);
   }
 
   @ApiOperation({
@@ -158,28 +254,36 @@ export class CategoriesController {
   @ApiResponse({
     status: 200,
     description: 'Category successfully updated.',
+    schema: apiResponseSchema(categorySchema),
   })
   @ApiResponse({
     status: 400,
     description: 'Invalid category data.',
+    schema: validationErrorSchema,
   })
   @ApiResponse({
     status: 404,
     description: 'Category not found.',
+    schema: notFoundErrorSchema,
   })
   @ApiResponse({
     status: 409,
     description: 'A category with the same name and type already exists.',
+    schema: conflictErrorSchema,
   })
   @Patch(':id')
-  update(
+  async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateCategorySchema))
     dto: UpdateCategoryDto,
   ) {
-    const userId = DEVELOPMENT_USER_ID;
+    const result = await this.categoriesService.update(
+      DEVELOPMENT_USER_ID,
+      id,
+      dto,
+    );
 
-    return this.categoriesService.update(userId, id, dto);
+    return successResponse(result);
   }
 
   @ApiOperation({
@@ -192,17 +296,17 @@ export class CategoriesController {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiResponse({
-    status: 200,
-    description: 'Category successfully archived.',
+    status: 204,
+    description: 'Category successfully archived. No response body.',
   })
   @ApiResponse({
     status: 404,
     description: 'Category not found.',
+    schema: notFoundErrorSchema,
   })
   @Delete(':id')
-  archive(@Param('id') id: string) {
-    const userId = DEVELOPMENT_USER_ID;
-
-    return this.categoriesService.archive(userId, id);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async archive(@Param('id') id: string) {
+    await this.categoriesService.archive(DEVELOPMENT_USER_ID, id);
   }
 }

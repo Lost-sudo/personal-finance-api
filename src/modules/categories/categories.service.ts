@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../database/prisma.service.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
+import { CategoryQueryDto } from './dto/category-query.dto.js';
 
 @Injectable()
 export class CategoriesService {
@@ -38,16 +39,55 @@ export class CategoriesService {
     });
   }
 
-  async findAll(userId: string) {
-    return this.prisma.category.findMany({
-      where: {
-        userId,
-        isArchived: false,
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+  // async findAll(userId: string) {
+  //   return this.prisma.category.findMany({
+  //     where: {
+  //       userId,
+  //       isArchived: false,
+  //     },
+  //     orderBy: {
+  //       name: 'asc',
+  //     },
+  //   });
+  // }
+  async findAll(userId: string, query: CategoryQueryDto) {
+    const { page, limit, type, search, sortBy, sortOrder } = query;
+
+    const where = {
+      userId,
+      isArchived: false,
+      ...(type ? { type } : {}),
+      ...(search
+        ? {
+            name: {
+              contains: search,
+              mode: 'insensitive' as const,
+            },
+          }
+        : {}),
+    };
+
+    const skip = (page - 1) * limit;
+
+    const [categories, total] = await Promise.all([
+      this.prisma.category.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
+      }),
+
+      this.prisma.category.count({
+        where,
+      }),
+    ]);
+
+    return {
+      categories,
+      total,
+    };
   }
 
   async findOne(userId: string, id: string) {
