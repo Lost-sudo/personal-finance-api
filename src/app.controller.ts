@@ -1,10 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from './database/prisma.service.js';
 
 
 @Controller()
 export class AppController {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService, private readonly prisma: PrismaService) {}
 
   @Get()
   getApplicationInfo() {

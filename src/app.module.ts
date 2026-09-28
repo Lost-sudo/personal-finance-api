@@ -4,6 +4,7 @@ import { AppService } from './app.service.js';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration.js';
 import Joi from 'joi';
+import { DatabaseModule } from './database/database.module.js';
 
 @Module({
   imports: [
@@ -15,8 +16,10 @@ import Joi from 'joi';
         NODE_ENV: Joi.string().valid('development', 'test', 'staging', 'production').default('development'),
         APP_ENV: Joi.string().valid('development', 'test', 'staging', 'production').default('development'),
         PORT: Joi.number().port().default(3000),
+        DATABASE_URL: Joi.string().uri({scheme: ['postgresql', 'postgres']}).required(),
       }),
     }),
+    DatabaseModule,
   ],
   controllers: [AppController],
   providers: [AppService],

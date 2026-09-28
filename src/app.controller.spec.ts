@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller.js';
+import { PrismaService } from './database/prisma.service.js';
 
 describe('AppController', () => {
   let appController: AppController;
@@ -21,6 +22,10 @@ describe('AppController', () => {
               return config[key];
             }),
           },
+        },
+        {
+          provide: PrismaService,
+          useValue: {},
         },
       ],
     }).compile();
