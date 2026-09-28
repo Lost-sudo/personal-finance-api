@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,174 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum AccountType {
+  CASH
+  BANK
+  E_WALLET
+  CREDIT_CARD
+  INVESTMENT
+  OTHER
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+enum RecurringFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique @db.VarChar(255)
+  passwordHash    String    @db.VarChar(255)
+  firstName       String    @db.VarChar(100)
+  lastName        String    @db.VarChar(100)
+  defaultCurrency String    @default("PHP") @db.Char(3)
+  isActive        Boolean   @default(true)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts              Account[]
+  categories            Category[]
+  transactions          Transaction[]
+  budgets               Budget[]
+  recurringTransactions RecurringTransaction[]
+
+  @@index([isActive])
+  @@map("users")
+}
+
+model Account {
+  id             String      @id @default(uuid()) @db.Uuid
+  userId         String      @db.Uuid
+  name           String      @db.VarChar(100)
+  type           AccountType
+  currency       String      @default("PHP") @db.Char(3)
+  initialBalance Decimal     @default(0) @db.Decimal(19, 2)
+  isArchived     Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]
+  recurringTransactions RecurringTransaction[]
+
+  @@unique([userId, name])
+  @@index([userId, isArchived])
+  @@index([userId, type])
+  @@map("accounts")
+}
+
+model Category {
+  id         String       @id @default(uuid()) @db.Uuid
+  userId     String       @db.Uuid
+  name       String       @db.VarChar(100)
+  type       CategoryType
+  color      String?      @db.VarChar(20)
+  isArchived Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]
+  budgets               Budget[]
+  recurringTransactions RecurringTransaction[]
+
+  @@unique([userId, name, type])
+  @@index([userId, type, isArchived])
+  @@map("categories")
+}
+
+model Transaction {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @db.Uuid
+  accountId       String          @db.Uuid
+  categoryId      String?         @db.Uuid
+  type            TransactionType
+  amount          Decimal         @db.Decimal(19, 2)
+  description     String?         @db.VarChar(500)
+  transactionDate DateTime
+  transferGroupId String?         @db.Uuid
+  deletedAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([userId, transactionDate])
+  @@index([userId, type, transactionDate])
+  @@index([accountId, transactionDate])
+  @@index([categoryId, transactionDate])
+  @@index([transferGroupId])
+  @@index([userId, deletedAt])
+  @@map("transactions")
+}
+
+model Budget {
+  id         String       @id @default(uuid()) @db.Uuid
+  userId     String       @db.Uuid
+  categoryId String       @db.Uuid
+  name       String       @db.VarChar(100)
+  amount     Decimal      @db.Decimal(19, 2)
+  period     BudgetPeriod
+  startDate  DateTime
+  endDate    DateTime
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([userId, startDate, endDate])
+  @@index([userId, categoryId, startDate, endDate])
+  @@map("budgets")
+}
+
+model RecurringTransaction {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @db.Uuid
+  accountId      String             @db.Uuid
+  categoryId     String?            @db.Uuid
+  type           TransactionType
+  amount         Decimal            @db.Decimal(19, 2)
+  description    String?            @db.VarChar(500)
+  frequency      RecurringFrequency
+  startDate      DateTime
+  endDate        DateTime?
+  nextOccurrence DateTime
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([userId, isActive, nextOccurrence])
+  @@index([accountId])
+  @@index([categoryId])
+  @@map("recurring_transactions")
 }
