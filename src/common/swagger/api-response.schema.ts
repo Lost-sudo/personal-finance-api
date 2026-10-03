@@ -46,6 +46,55 @@ export const categorySchema: SchemaObject = {
   },
 };
 
+export const accountSchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    userId: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    name: {
+      type: 'string',
+      example: 'BDO Savings',
+      maxLength: 100,
+    },
+    type: {
+      type: 'string',
+      enum: ['CASH', 'BANK', 'E_WALLET', 'CREDIT_CARD', 'INVESTMENT', 'OTHER'],
+      example: 'BANK',
+    },
+    currency: {
+      type: 'string',
+      maxLength: 3,
+      example: 'PHP',
+    },
+    initialBalance: {
+      type: 'string',
+      example: '15000.00',
+    },
+    isArchived: {
+      type: 'boolean',
+      example: false,
+    },
+    createdAt: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-15T08:30:00.000Z',
+    },
+    updatedAt: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-15T08:30:00.000Z',
+    },
+  },
+};
+
 export function apiResponseSchema(data: SchemaObject): SchemaObject {
   return {
     type: 'object',
