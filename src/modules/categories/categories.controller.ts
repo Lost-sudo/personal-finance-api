@@ -53,7 +53,7 @@ import {
 } from '../../common/swagger/api-response.schema.js';
 
 @ApiTags('Categories')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('categories')
 export class CategoriesController {
