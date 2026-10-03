@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -21,9 +22,12 @@ import {
   type UpdateCategoryDto,
   updateCategorySchema,
 } from './dto/update-category.dto.js';
-import { DEVELOPMENT_USER_ID } from '../../common/constants/development-user.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type.js';
 
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiOperation,
   ApiParam,
@@ -49,6 +53,8 @@ import {
 } from '../../common/swagger/api-response.schema.js';
 
 @ApiTags('Categories')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
@@ -102,11 +108,9 @@ export class CategoriesController {
   async create(
     @Body(new ZodValidationPipe(createCategorySchema))
     dto: CreateCategoryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const category = await this.categoriesService.create(
-      DEVELOPMENT_USER_ID,
-      dto,
-    );
+    const category = await this.categoriesService.create(user.id, dto);
 
     return successResponse(category);
   }
@@ -175,11 +179,9 @@ export class CategoriesController {
   @Get()
   async findAll(
     @Query(new ZodValidationPipe(categoryQuerySchema)) query: CategoryQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const result = await this.categoriesService.findAll(
-      DEVELOPMENT_USER_ID,
-      query,
-    );
+    const result = await this.categoriesService.findAll(user.id, query);
 
     const totalPages = Math.ceil(result.total / query.limit);
 
@@ -216,11 +218,11 @@ export class CategoriesController {
     schema: notFoundErrorSchema,
   })
   @Get(':id')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const result = await this.categoriesService.findOne(
-      DEVELOPMENT_USER_ID,
-      id,
-    );
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.categoriesService.findOne(user.id, id);
 
     return successResponse(result);
   }
@@ -282,12 +284,9 @@ export class CategoriesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(updateCategorySchema))
     dto: UpdateCategoryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const result = await this.categoriesService.update(
-      DEVELOPMENT_USER_ID,
-      id,
-      dto,
-    );
+    const result = await this.categoriesService.update(user.id, id, dto);
 
     return successResponse(result);
   }
@@ -317,7 +316,10 @@ export class CategoriesController {
   })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async archive(@Param('id', ParseUUIDPipe) id: string) {
-    await this.categoriesService.archive(DEVELOPMENT_USER_ID, id);
+  async archive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.categoriesService.archive(user.id, id);
   }
 }

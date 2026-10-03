@@ -39,17 +39,6 @@ export class CategoriesService {
     });
   }
 
-  // async findAll(userId: string) {
-  //   return this.prisma.category.findMany({
-  //     where: {
-  //       userId,
-  //       isArchived: false,
-  //     },
-  //     orderBy: {
-  //       name: 'asc',
-  //     },
-  //   });
-  // }
   async findAll(userId: string, query: CategoryQueryDto) {
     const { page, limit, type, search, sortBy, sortOrder } = query;
 
