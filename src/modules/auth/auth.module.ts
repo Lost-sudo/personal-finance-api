@@ -15,8 +15,8 @@ import { PasswordService } from './password.service.js';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('jwt.secret'),
         signOptions: {
-          expiresIn:
-            (configService.get<string>('jwt.expiresIn') ?? '15m') as never,
+          expiresIn: (configService.get<string>('jwt.expiresIn') ??
+            '15m') as never,
         },
       }),
     }),

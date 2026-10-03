@@ -22,8 +22,6 @@ describe('AuthService', () => {
     signAsync: vi.fn(),
   };
 
-
-
   beforeEach(async () => {
     vi.clearAllMocks();
 
@@ -100,20 +98,22 @@ describe('AuthService', () => {
         },
       });
 
-      expect(userServiceMock.findByEmail).toHaveBeenCalledWith('john@example.com');
+      expect(userServiceMock.findByEmail).toHaveBeenCalledWith(
+        'john@example.com',
+      );
 
       expect(passwordServiceMock.hash).toHaveBeenCalledWith('Password123!');
 
-      expect(userServiceMock.create).toHaveBeenCalledWith(
-        {
-          email: 'john@example.com',
-          passwordHash: 'hashed-password',
-          firstName: 'John',
-          lastName: 'Doe',
-        }
-      );
+      expect(userServiceMock.create).toHaveBeenCalledWith({
+        email: 'john@example.com',
+        passwordHash: 'hashed-password',
+        firstName: 'John',
+        lastName: 'Doe',
+      });
 
-      expect(jwtServiceMock.signAsync).toHaveBeenCalledWith({ sub: 'user-123' });
+      expect(jwtServiceMock.signAsync).toHaveBeenCalledWith({
+        sub: 'user-123',
+      });
     });
 
     it('should throw ConflictException when the email already exists', async () => {
@@ -129,7 +129,9 @@ describe('AuthService', () => {
         email: 'john@example.com',
       });
 
-      await expect(service.register(dto)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.register(dto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
 
       expect(passwordServiceMock.hash).not.toHaveBeenCalled();
 
@@ -183,9 +185,14 @@ describe('AuthService', () => {
         },
       });
 
-      expect(userServiceMock.findByEmail).toHaveBeenCalledWith('john@example.com');
+      expect(userServiceMock.findByEmail).toHaveBeenCalledWith(
+        'john@example.com',
+      );
 
-      expect(passwordServiceMock.verify).toHaveBeenCalledWith('hashed-password', 'Password123!');
+      expect(passwordServiceMock.verify).toHaveBeenCalledWith(
+        'hashed-password',
+        'Password123!',
+      );
 
       expect(jwtServiceMock.signAsync).toHaveBeenCalledWith({
         sub: 'user-123',

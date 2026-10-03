@@ -68,10 +68,12 @@ describe('UsersService', () => {
       });
     });
 
-    it('should throw error when Prisma throws an error', async() => {
+    it('should throw error when Prisma throws an error', async () => {
       prismaMock.user.findUnique.mockRejectedValue(new Error('Database error'));
 
-      await expect(service.findByEmail('unknown@example.com')).rejects.toThrow('Database error');
+      await expect(service.findByEmail('unknown@example.com')).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -112,7 +114,9 @@ describe('UsersService', () => {
     it('should throw error when Prisma throws an error', async () => {
       prismaMock.user.findUnique.mockRejectedValue(new Error('Database error'));
 
-      await expect(service.findById('unknown-user-id')).rejects.toThrow('Database error');
+      await expect(service.findById('unknown-user-id')).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -146,12 +150,14 @@ describe('UsersService', () => {
     it('should throw error when Prisma throws an error', async () => {
       prismaMock.user.create.mockRejectedValue(new Error('Database error'));
 
-      await expect(service.create({
-        email: 'john@example.com',
-        passwordHash: 'hashed-password',
-        firstName: 'John',
-        lastName: 'Doe',
-      })).rejects.toThrow('Database error');
+      await expect(
+        service.create({
+          email: 'john@example.com',
+          passwordHash: 'hashed-password',
+          firstName: 'John',
+          lastName: 'Doe',
+        }),
+      ).rejects.toThrow('Database error');
     });
-  })
+  });
 });

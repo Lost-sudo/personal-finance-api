@@ -16,7 +16,10 @@ async function bootstrap() {
 
   const swaggerConfig = createSwaggerConfig();
 
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig.build());
+  const swaggerDocument = SwaggerModule.createDocument(
+    app,
+    swaggerConfig.build(),
+  );
 
   SwaggerModule.setup('api/docs', app, swaggerDocument);
 
