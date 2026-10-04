@@ -12,6 +12,8 @@ describe('AccountsController', () => {
     findOne: vi.fn(),
     update: vi.fn(),
     archive: vi.fn(),
+    getBalance: vi.fn(),
+    findTransactions: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -93,5 +95,44 @@ describe('AccountsController', () => {
       'user-1',
       'account-1',
     );
+  });
+
+  it('should forward the authenticated user id when reading the balance', async () => {
+    const user = { id: 'user-1' };
+    const balance = { accountId: 'account-1', balance: '15000.00' };
+
+    accountsServiceMock.getBalance.mockResolvedValue(balance);
+
+    const result = await controller.getBalance('account-1', user);
+
+    expect(accountsServiceMock.getBalance).toHaveBeenCalledWith(
+      'user-1',
+      'account-1',
+    );
+    expect(result).toMatchObject({ success: true, data: balance });
+  });
+
+  it('should forward the authenticated user id when reading account transactions', async () => {
+    const user = { id: 'user-1' };
+    const query = { page: 1, limit: 20 } as never;
+    const transactions = [{ id: 'tx-1' }];
+
+    accountsServiceMock.findTransactions.mockResolvedValue({
+      transactions,
+      total: 1,
+    });
+
+    const result = await controller.findTransactions('account-1', query, user);
+
+    expect(accountsServiceMock.findTransactions).toHaveBeenCalledWith(
+      'user-1',
+      'account-1',
+      query,
+    );
+    expect(result).toMatchObject({
+      success: true,
+      data: transactions,
+      meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
   });
 });

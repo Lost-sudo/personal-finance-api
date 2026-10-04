@@ -56,18 +56,47 @@ describe('Accounts E2E', () => {
   });
 
   beforeEach(async () => {
+    const userIds = [userA.id, userB.id];
+    await prisma.transaction.deleteMany({
+      where: {
+        userId: { in: userIds },
+      },
+    });
     await prisma.account.deleteMany({
       where: {
-        userId: { in: [userA.id, userB.id] },
+        userId: { in: userIds },
+      },
+    });
+    await prisma.category.deleteMany({
+      where: {
+        userId: { in: userIds },
       },
     });
   });
 
   afterAll(async () => {
+    const userIds = [userA.id, userB.id];
+
+    await prisma.transaction
+      .deleteMany({
+        where: {
+          userId: { in: userIds },
+        },
+      })
+      .catch(() => undefined);
+
     await prisma.account
       .deleteMany({
         where: {
-          userId: { in: [userA.id, userB.id] },
+          userId: { in: userIds },
+        },
+      })
+      .catch(() => undefined);
+
+    await prisma.category
+      .deleteMany({
+        where: {
+          userId: { in: userIds },
         },
       })
       .catch(() => undefined);
@@ -86,6 +115,24 @@ describe('Accounts E2E', () => {
   function createAccount(token: string, payload: Record<string, unknown>) {
     return request(app.getHttpServer())
       .post('/api/v1/accounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send(payload)
+      .expect(201)
+      .then((response) => response.body.data);
+  }
+
+  function createCategory(token: string, payload: Record<string, unknown>) {
+    return request(app.getHttpServer())
+      .post('/api/v1/categories')
+      .set('Authorization', `Bearer ${token}`)
+      .send(payload)
+      .expect(201)
+      .then((response) => response.body.data);
+  }
+
+  function createTransaction(token: string, payload: Record<string, unknown>) {
+    return request(app.getHttpServer())
+      .post('/api/v1/transactions')
       .set('Authorization', `Bearer ${token}`)
       .send(payload)
       .expect(201)
@@ -680,6 +727,351 @@ describe('Accounts E2E', () => {
 
       await request(app.getHttpServer())
         .delete(`/api/v1/accounts/${account.id}`)
+        .expect(401);
+    });
+  });
+
+  describe('GET /api/v1/accounts/:id/balance', () => {
+    const transactionDate = '2026-01-15T08:30:00.000Z';
+
+    async function seedBalanceFixtures() {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+        initialBalance: 10000,
+      });
+      const secondary = await createAccount(userA.accessToken, {
+        name: 'Cash Wallet',
+        type: 'CASH',
+      });
+      const category = await createCategory(userA.accessToken, {
+        name: 'Food',
+        type: 'EXPENSE',
+      });
+      return { account, secondary, category };
+    }
+
+    it('should return the initial balance when there are no transactions', async () => {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+        initialBalance: 10000,
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/balance`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: {
+          accountId: account.id,
+          initialBalance: '10000.00',
+          income: '0.00',
+          expenses: '0.00',
+          incomingTransfers: '0.00',
+          outgoingTransfers: '0.00',
+          balance: '10000.00',
+        },
+      });
+    });
+
+    it('should include income and expenses in the balance', async () => {
+      const { account, category } = await seedBalanceFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'INCOME',
+        amount: 5000,
+        transactionDate,
+        accountId: account.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 2500,
+        transactionDate,
+        accountId: account.id,
+        categoryId: category.id,
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/balance`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(200);
+
+      expect(response.body.data).toMatchObject({
+        accountId: account.id,
+        initialBalance: '10000.00',
+        income: '5000.00',
+        expenses: '2500.00',
+        balance: '12500.00',
+      });
+    });
+
+    it('should include incoming and outgoing transfers in the balance', async () => {
+      const { account, secondary } = await seedBalanceFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'TRANSFER',
+        amount: 2000,
+        transactionDate,
+        accountId: account.id,
+        toAccountId: secondary.id,
+      });
+
+      const sourceResponse = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/balance`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(200);
+
+      expect(sourceResponse.body.data).toMatchObject({
+        outgoingTransfers: '2000.00',
+        incomingTransfers: '0.00',
+        balance: '8000.00',
+      });
+
+      const destinationResponse = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${secondary.id}/balance`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(200);
+
+      expect(destinationResponse.body.data).toMatchObject({
+        outgoingTransfers: '0.00',
+        incomingTransfers: '2000.00',
+        balance: '2000.00',
+      });
+    });
+
+    it('should return 404 for another user account', async () => {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+      });
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/balance`)
+        .set('Authorization', `Bearer ${userB.accessToken}`)
+        .expect(404);
+    });
+
+    it('should return 404 for a nonexistent account', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/accounts/00000000-0000-0000-0000-000000000000/balance')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(404);
+    });
+
+    it('should return 404 for an archived account', async () => {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+      });
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/accounts/${account.id}`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/balance`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(404);
+    });
+
+    it('should return 401 for unauthenticated balance requests', async () => {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+      });
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/balance`)
+        .expect(401);
+    });
+  });
+
+  describe('GET /api/v1/accounts/:id/transactions', () => {
+    async function seedHistoryFixtures() {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+      });
+      const secondary = await createAccount(userA.accessToken, {
+        name: 'Cash Wallet',
+        type: 'CASH',
+      });
+      const category = await createCategory(userA.accessToken, {
+        name: 'Food',
+        type: 'EXPENSE',
+      });
+      return { account, secondary, category };
+    }
+
+    it('should return the transaction history of the account', async () => {
+      const { account, secondary, category } = await seedHistoryFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: '2026-01-10T08:30:00.000Z',
+        description: 'Grocery',
+        accountId: account.id,
+        categoryId: category.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'INCOME',
+        amount: 1000,
+        transactionDate: '2026-01-12T08:30:00.000Z',
+        accountId: account.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'TRANSFER',
+        amount: 500,
+        transactionDate: '2026-01-14T08:30:00.000Z',
+        accountId: account.id,
+        toAccountId: secondary.id,
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/transactions`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        meta: { page: 1, limit: 20, total: 3, totalPages: 1 },
+      });
+      expect(response.body.data).toHaveLength(3);
+      for (const transaction of response.body.data) {
+        expect(transaction).toMatchObject({ accountId: account.id });
+      }
+      // Deterministic ordering: newest transactionDate first.
+      expect(response.body.data[0]).toMatchObject({ type: 'TRANSFER' });
+      expect(response.body.data[2]).toMatchObject({ type: 'EXPENSE' });
+    });
+
+    it('should paginate the transaction history', async () => {
+      const { account } = await seedHistoryFixtures();
+
+      for (let index = 0; index < 3; index += 1) {
+        await createTransaction(userA.accessToken, {
+          type: 'EXPENSE',
+          amount: 100,
+          transactionDate: `2026-01-0${index + 1}T08:30:00.000Z`,
+          accountId: account.id,
+        });
+      }
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/transactions`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ page: 2, limit: 1 })
+        .expect(200);
+
+      expect(response.body.meta).toMatchObject({
+        page: 2,
+        limit: 1,
+        total: 3,
+        totalPages: 3,
+      });
+      expect(response.body.data).toHaveLength(1);
+    });
+
+    it('should filter the history by transaction type', async () => {
+      const { account, category } = await seedHistoryFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: '2026-01-10T08:30:00.000Z',
+        accountId: account.id,
+        categoryId: category.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'INCOME',
+        amount: 1000,
+        transactionDate: '2026-01-12T08:30:00.000Z',
+        accountId: account.id,
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/transactions`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ type: 'INCOME' })
+        .expect(200);
+
+      expect(response.body.meta).toMatchObject({ total: 1 });
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0]).toMatchObject({ type: 'INCOME' });
+    });
+
+    it('should filter the history by date range', async () => {
+      const { account } = await seedHistoryFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: '2026-01-05T08:30:00.000Z',
+        accountId: account.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 200,
+        transactionDate: '2026-01-20T08:30:00.000Z',
+        accountId: account.id,
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/transactions`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({
+          dateFrom: '2026-01-10T00:00:00.000Z',
+          dateTo: '2026-01-31T23:59:59.000Z',
+        })
+        .expect(200);
+
+      expect(response.body.meta).toMatchObject({ total: 1 });
+      expect(response.body.data).toHaveLength(1);
+      expect(Number(response.body.data[0].amount)).toBe(200);
+    });
+
+    it('should return 404 for another user account', async () => {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+      });
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/transactions`)
+        .set('Authorization', `Bearer ${userB.accessToken}`)
+        .expect(404);
+    });
+
+    it('should return 404 for an archived account', async () => {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+      });
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/accounts/${account.id}`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/transactions`)
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .expect(404);
+    });
+
+    it('should return 401 for unauthenticated history requests', async () => {
+      const account = await createAccount(userA.accessToken, {
+        name: 'BDO Savings',
+        type: 'BANK',
+      });
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/accounts/${account.id}/transactions`)
         .expect(401);
     });
   });

@@ -145,6 +145,18 @@ export const transactionSchema: SchemaObject = {
       nullable: true,
       example: '550e8400-e29b-41d4-a716-446655440000',
     },
+    fromAccountId: {
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    toAccountId: {
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
     deletedAt: {
       type: 'string',
       format: 'date-time',
@@ -164,8 +176,42 @@ export const transactionSchema: SchemaObject = {
   },
 };
 
-export function apiResponseSchema(data: SchemaObject): SchemaObject {
-  return {
+export const accountBalanceSchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    accountId: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    initialBalance: {
+      type: 'string',
+      example: '15000.00',
+    },
+    income: {
+      type: 'string',
+      example: '5000.00',
+    },
+    expenses: {
+      type: 'string',
+      example: '2500.00',
+    },
+    incomingTransfers: {
+      type: 'string',
+      example: '1000.00',
+    },
+    outgoingTransfers: {
+      type: 'string',
+      example: '500.00',
+    },
+    balance: {
+      type: 'string',
+      example: '18000.00',
+    },
+  },
+};
+
+export function apiResponseSchema(data: SchemaObject): SchemaObject {  return {
     type: 'object',
     required: ['success', 'data'],
     properties: {

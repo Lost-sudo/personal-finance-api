@@ -40,15 +40,21 @@ import {
   accountQuerySchema,
 } from './dto/account-query.dto.js';
 import {
+  type AccountTransactionsQueryDto,
+  accountTransactionsQuerySchema,
+} from './dto/account-transactions-query.dto.js';
+import {
   paginatedResponse,
   successResponse,
 } from '../../common/utils/api-response.js';
 import {
+  accountBalanceSchema,
   accountSchema,
   apiResponseSchema,
   conflictErrorSchema,
   notFoundErrorSchema,
   paginatedResponseSchema,
+  transactionSchema,
   validationErrorSchema,
 } from '../../common/swagger/api-response.schema.js';
 
@@ -200,6 +206,129 @@ export class AccountsController {
     const totalPages = Math.ceil(result.total / query.limit);
 
     return paginatedResponse(result.accounts, {
+      page: query.page,
+      limit: query.limit,
+      total: result.total,
+      totalPages,
+    });
+  }
+
+  @ApiOperation({
+    summary: 'Get an account balance',
+    description:
+      'Returns the derived balance of an account belonging to the current user. The balance is computed from the initial balance plus income and incoming transfers minus expenses and outgoing transfers.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Account UUID.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Account balance successfully retrieved.',
+    schema: apiResponseSchema(accountBalanceSchema),
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid account id.',
+    schema: validationErrorSchema,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Account not found.',
+    schema: notFoundErrorSchema,
+  })
+  @Get(':id/balance')
+  async getBalance(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.accountsService.getBalance(user.id, id);
+
+    return successResponse(result);
+  }
+
+  @ApiOperation({
+    summary: 'List account transactions',
+    description:
+      'Returns paginated transactions involving an account belonging to the current user.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Account UUID.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number to retrieve.',
+    type: Number,
+    minimum: 1,
+    default: 1,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Number of transactions per page.',
+    type: Number,
+    minimum: 1,
+    maximum: 100,
+    default: 20,
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'type',
+    description: 'Filter transactions by type.',
+    enum: ['INCOME', 'EXPENSE', 'TRANSFER'],
+    required: false,
+    example: 'EXPENSE',
+  })
+  @ApiQuery({
+    name: 'dateFrom',
+    description: 'Only transactions on or after this date-time.',
+    type: String,
+    format: 'date-time',
+    required: false,
+    example: '2026-01-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'dateTo',
+    description: 'Only transactions on or before this date-time.',
+    type: String,
+    format: 'date-time',
+    required: false,
+    example: '2026-01-31T23:59:59.000Z',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Account transactions successfully retrieved.',
+    schema: paginatedResponseSchema(transactionSchema),
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid account id or query parameters.',
+    schema: validationErrorSchema,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Account not found.',
+    schema: notFoundErrorSchema,
+  })
+  @Get(':id/transactions')
+  async findTransactions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query(new ZodValidationPipe(accountTransactionsQuerySchema))
+    query: AccountTransactionsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.accountsService.findTransactions(
+      user.id,
+      id,
+      query,
+    );
+
+    const totalPages = Math.ceil(result.total / query.limit);
+
+    return paginatedResponse(result.transactions, {
       page: query.page,
       limit: query.limit,
       total: result.total,

@@ -61,6 +61,22 @@ export class TransactionResponseDto {
   transferGroupId: string | null;
 
   @ApiProperty({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    format: 'uuid',
+    nullable: true,
+    description: 'Source account of a transfer.',
+  })
+  fromAccountId: string | null;
+
+  @ApiProperty({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    format: 'uuid',
+    nullable: true,
+    description: 'Destination account of a transfer.',
+  })
+  toAccountId: string | null;
+
+  @ApiProperty({
     example: null,
     format: 'date-time',
     nullable: true,

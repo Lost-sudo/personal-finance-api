@@ -214,6 +214,8 @@ export class TransactionsService {
       description: dto.description,
       categoryId: null,
       transferGroupId,
+      fromAccountId: fromAccount.id,
+      toAccountId: toAccount.id,
     };
 
     const [outgoing, incoming] = await this.prisma.$transaction([

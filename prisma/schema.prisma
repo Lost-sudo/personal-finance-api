@@ -114,6 +114,8 @@ model Transaction {
   description     String?         @db.VarChar(500)
   transactionDate DateTime
   transferGroupId String?         @db.Uuid
+  fromAccountId   String?         @db.Uuid
+  toAccountId     String?         @db.Uuid
   deletedAt       DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -127,6 +129,8 @@ model Transaction {
   @@index([accountId, transactionDate])
   @@index([categoryId, transactionDate])
   @@index([transferGroupId])
+  @@index([fromAccountId])
+  @@index([toAccountId])
   @@index([userId, deletedAt])
   @@map("transactions")
 }
