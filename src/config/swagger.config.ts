@@ -9,6 +9,10 @@ export function createSwaggerConfig(): DocumentBuilder {
     .setVersion('1.0')
     .addTag('Categories', 'Income and expense category management')
     .addTag('Accounts', 'Financial account management')
+    .addTag(
+      'Transactions',
+      'Income, expense, and transfer transaction management',
+    )
     .addBearerAuth(
       {
         type: 'http',
