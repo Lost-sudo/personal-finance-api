@@ -139,7 +139,7 @@ export class TransactionsController {
   @ApiOperation({
     summary: 'List transactions',
     description:
-      'Returns all active transactions belonging to the current user.',
+      'Returns paginated transactions belonging to the current user with support for filtering by type, account, category, and date range, and deterministic sorting.',
   })
   @ApiQuery({
     name: 'page',
@@ -167,7 +167,8 @@ export class TransactionsController {
   })
   @ApiQuery({
     name: 'accountId',
-    description: 'Filter transactions by account.',
+    description:
+      'Filter transactions involving the account, including outgoing and incoming transfer legs.',
     type: String,
     format: 'uuid',
     required: false,

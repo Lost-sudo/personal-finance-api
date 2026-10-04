@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { CategoriesModule } from './modules/categories/categories.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { TransactionsModule } from './modules/transactions/transactions.module.js';
+import { ReportsModule } from './modules/reports/reports.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 
@@ -36,6 +37,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
     CategoriesModule,
     AccountsModule,
     TransactionsModule,
+    ReportsModule,
     UsersModule,
     AuthModule,
   ],

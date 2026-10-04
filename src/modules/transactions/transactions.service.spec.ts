@@ -279,7 +279,7 @@ describe('TransactionsService', () => {
         where,
         skip: 0,
         take: 20,
-        orderBy: { transactionDate: 'desc' },
+        orderBy: [{ transactionDate: 'desc' }, { id: 'asc' }],
       });
       expect(prismaMock.transaction.count).toHaveBeenCalledWith({ where });
     });
@@ -311,7 +311,11 @@ describe('TransactionsService', () => {
         userId,
         deletedAt: null,
         type: 'EXPENSE',
-        accountId: 'account-1',
+        OR: [
+          { accountId: 'account-1' },
+          { fromAccountId: 'account-1' },
+          { toAccountId: 'account-1' },
+        ],
         categoryId: 'category-1',
         transactionDate: {
           gte: '2026-01-01T00:00:00.000Z',
@@ -324,9 +328,179 @@ describe('TransactionsService', () => {
         where,
         skip: 10,
         take: 10,
-        orderBy: { amount: 'asc' },
+        orderBy: [{ amount: 'asc' }, { id: 'asc' }],
       });
       expect(prismaMock.transaction.count).toHaveBeenCalledWith({ where });
+    });
+
+    it('should paginate with custom page and limit', async () => {
+      prismaMock.transaction.findMany.mockResolvedValue([]);
+      prismaMock.transaction.count.mockResolvedValue(25);
+
+      await service.findAll('user-1', {
+        page: 3,
+        limit: 10,
+        sortBy: 'transactionDate',
+        sortOrder: 'desc',
+      });
+
+      expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 20, take: 10 }),
+      );
+      expect(prismaMock.transaction.count).toHaveBeenCalledTimes(1);
+    });
+
+    it('should filter by transaction type', async () => {
+      prismaMock.transaction.findMany.mockResolvedValue([baseTransaction]);
+      prismaMock.transaction.count.mockResolvedValue(1);
+
+      await service.findAll('user-1', {
+        page: 1,
+        limit: 20,
+        type: 'INCOME',
+        sortBy: 'transactionDate',
+        sortOrder: 'desc',
+      });
+
+      expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ type: 'INCOME' }),
+        }),
+      );
+    });
+
+    it('should filter by account across all three relationships', async () => {
+      prismaMock.transaction.findMany.mockResolvedValue([baseTransaction]);
+      prismaMock.transaction.count.mockResolvedValue(1);
+
+      await service.findAll('user-1', {
+        page: 1,
+        limit: 20,
+        accountId: 'account-1',
+        sortBy: 'transactionDate',
+        sortOrder: 'desc',
+      });
+
+      const expectedWhere = {
+        userId: 'user-1',
+        deletedAt: null,
+        OR: [
+          { accountId: 'account-1' },
+          { fromAccountId: 'account-1' },
+          { toAccountId: 'account-1' },
+        ],
+      };
+
+      expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(prismaMock.transaction.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
+    });
+
+    it('should filter by category', async () => {
+      prismaMock.transaction.findMany.mockResolvedValue([baseTransaction]);
+      prismaMock.transaction.count.mockResolvedValue(1);
+
+      await service.findAll('user-1', {
+        page: 1,
+        limit: 20,
+        categoryId: 'category-1',
+        sortBy: 'transactionDate',
+        sortOrder: 'desc',
+      });
+
+      expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ categoryId: 'category-1' }),
+        }),
+      );
+    });
+
+    it('should filter by dateFrom only', async () => {
+      prismaMock.transaction.findMany.mockResolvedValue([baseTransaction]);
+      prismaMock.transaction.count.mockResolvedValue(1);
+
+      await service.findAll('user-1', {
+        page: 1,
+        limit: 20,
+        dateFrom: '2026-01-01T00:00:00.000Z',
+        sortBy: 'transactionDate',
+        sortOrder: 'desc',
+      });
+
+      expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            transactionDate: { gte: '2026-01-01T00:00:00.000Z' },
+          }),
+        }),
+      );
+    });
+
+    it('should filter by dateTo only', async () => {
+      prismaMock.transaction.findMany.mockResolvedValue([baseTransaction]);
+      prismaMock.transaction.count.mockResolvedValue(1);
+
+      await service.findAll('user-1', {
+        page: 1,
+        limit: 20,
+        dateTo: '2026-01-31T23:59:59.000Z',
+        sortBy: 'transactionDate',
+        sortOrder: 'desc',
+      });
+
+      expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            transactionDate: { lte: '2026-01-31T23:59:59.000Z' },
+          }),
+        }),
+      );
+    });
+
+    it.each([
+      ['transactionDate', 'asc'],
+      ['transactionDate', 'desc'],
+      ['createdAt', 'asc'],
+      ['createdAt', 'desc'],
+      ['amount', 'asc'],
+      ['amount', 'desc'],
+    ] as const)(
+      'should sort by %s %s with deterministic secondary id ordering',
+      async (sortBy, sortOrder) => {
+        prismaMock.transaction.findMany.mockResolvedValue([baseTransaction]);
+        prismaMock.transaction.count.mockResolvedValue(1);
+
+        await service.findAll('user-1', {
+          page: 1,
+          limit: 20,
+          sortBy,
+          sortOrder,
+        });
+
+        expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            orderBy: [{ [sortBy]: sortOrder }, { id: 'asc' }],
+          }),
+        );
+      },
+    );
+
+    it('should return the total count for pagination', async () => {
+      prismaMock.transaction.findMany.mockResolvedValue([baseTransaction]);
+      prismaMock.transaction.count.mockResolvedValue(42);
+
+      const result = await service.findAll('user-1', {
+        page: 2,
+        limit: 20,
+        sortBy: 'transactionDate',
+        sortOrder: 'desc',
+      });
+
+      expect(result.total).toBe(42);
+      expect(result.transactions).toEqual([baseTransaction]);
     });
   });
 

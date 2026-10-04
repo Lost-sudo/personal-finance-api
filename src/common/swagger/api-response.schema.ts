@@ -211,6 +211,57 @@ export const accountBalanceSchema: SchemaObject = {
   },
 };
 
+export const financialSummarySchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    fromDate: {
+      type: 'string',
+      format: 'date-time',
+      nullable: true,
+      example: '2026-01-01T00:00:00.000Z',
+    },
+    toDate: {
+      type: 'string',
+      format: 'date-time',
+      nullable: true,
+      example: '2026-01-31T23:59:59.000Z',
+    },
+    income: {
+      type: 'string',
+      example: '5000.00',
+    },
+    expenses: {
+      type: 'string',
+      example: '2500.00',
+    },
+    netCashFlow: {
+      type: 'string',
+      example: '2500.00',
+    },
+    spendingByCategory: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          categoryId: {
+            type: 'string',
+            format: 'uuid',
+            example: '550e8400-e29b-41d4-a716-446655440000',
+          },
+          categoryName: {
+            type: 'string',
+            example: 'Food',
+          },
+          amount: {
+            type: 'string',
+            example: '800.00',
+          },
+        },
+      },
+    },
+  },
+};
+
 export function apiResponseSchema(data: SchemaObject): SchemaObject {  return {
     type: 'object',
     required: ['success', 'data'],

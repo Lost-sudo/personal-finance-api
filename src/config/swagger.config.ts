@@ -13,6 +13,7 @@ export function createSwaggerConfig(): DocumentBuilder {
       'Transactions',
       'Income, expense, and transfer transaction management',
     )
+    .addTag('Reports', 'Financial summary and reporting')
     .addBearerAuth(
       {
         type: 'http',

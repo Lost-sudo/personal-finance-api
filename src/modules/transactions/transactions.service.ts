@@ -5,9 +5,22 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { CreateTransactionDto } from './dto/create-transaction.dto.js';
 import { UpdateTransactionDto } from './dto/update-transaction.dto.js';
 import { TransactionQueryDto } from './dto/transaction-query.dto.js';
+
+// Whitelist mapping client sort keys to Prisma fields. Client input can only
+// ever select one of these keys (also enforced by the Zod query schema), so
+// arbitrary field names never reach Prisma.
+const transactionSortFields = {
+  transactionDate: 'transactionDate',
+  amount: 'amount',
+  createdAt: 'createdAt',
+} as const satisfies Record<
+  TransactionQueryDto['sortBy'],
+  keyof Prisma.TransactionOrderByWithRelationInput
+>;
 
 @Injectable()
 export class TransactionsService {
@@ -39,7 +52,19 @@ export class TransactionsService {
       userId,
       deletedAt: null,
       ...(type ? { type } : {}),
-      ...(accountId ? { accountId } : {}),
+      // Transfers are stored as paired rows sharing a transferGroupId, each
+      // carrying its own accountId. The OR matches normal transactions plus
+      // both the outgoing and incoming legs of transfers involving the
+      // account (the incoming leg is owned by the counterparty account).
+      ...(accountId
+        ? {
+            OR: [
+              { accountId },
+              { fromAccountId: accountId },
+              { toAccountId: accountId },
+            ],
+          }
+        : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(dateFrom || dateTo
         ? {
@@ -61,14 +86,19 @@ export class TransactionsService {
 
     const skip = (page - 1) * limit;
 
+    // Secondary id ordering keeps pagination stable when rows share the
+    // primary sort value.
+    const orderBy: Prisma.TransactionOrderByWithRelationInput[] = [
+      { [transactionSortFields[sortBy]]: sortOrder },
+      { id: 'asc' },
+    ];
+
     const [transactions, total] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
         skip,
         take: limit,
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
+        orderBy,
       }),
 
       this.prisma.transaction.count({

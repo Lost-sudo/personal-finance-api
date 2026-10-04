@@ -532,6 +532,319 @@ describe('Transactions E2E', () => {
     });
   });
 
+  describe('GET /api/v1/transactions filtering, sorting, and pagination', () => {
+    async function seedCollectionFixtures() {
+      const { account, secondaryAccount, category } = await seedUserResources(
+        userA,
+        {
+          account: 'Primary Checking',
+          secondaryAccount: 'Savings Vault',
+          category: 'Food',
+        },
+      );
+      const salaryCategory = await createCategory(userA.accessToken, {
+        name: 'Salary',
+        type: 'INCOME',
+      });
+      return { account, secondaryAccount, category, salaryCategory };
+    }
+
+    it('should paginate the transaction collection', async () => {
+      const { account } = await seedCollectionFixtures();
+
+      for (let index = 1; index <= 3; index += 1) {
+        await createTransaction(userA.accessToken, {
+          type: 'EXPENSE',
+          amount: 100 * index,
+          transactionDate: `2026-01-0${index}T08:30:00.000Z`,
+          accountId: account.id,
+        });
+      }
+
+      const firstPage = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ page: 1, limit: 2 })
+        .expect(200);
+
+      expect(firstPage.body.meta).toMatchObject({
+        page: 1,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+      });
+      expect(firstPage.body.data).toHaveLength(2);
+
+      const secondPage = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ page: 2, limit: 2 })
+        .expect(200);
+
+      expect(secondPage.body.meta).toMatchObject({
+        page: 2,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+      });
+      expect(secondPage.body.data).toHaveLength(1);
+    });
+
+    it('should filter by transaction type', async () => {
+      const { account } = await seedCollectionFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: TRANSACTION_DATE,
+        accountId: account.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'INCOME',
+        amount: 1000,
+        transactionDate: TRANSACTION_DATE,
+        accountId: account.id,
+      });
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ type: 'EXPENSE' })
+        .expect(200);
+
+      expect(response.body.meta).toMatchObject({ total: 1 });
+      expect(response.body.data).toHaveLength(1);
+      for (const transaction of response.body.data) {
+        expect(transaction.type).toBe('EXPENSE');
+      }
+    });
+
+    it('should filter by account including both transfer legs', async () => {
+      const { account, secondaryAccount, category } =
+        await seedCollectionFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: TRANSACTION_DATE,
+        accountId: account.id,
+        categoryId: category.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'TRANSFER',
+        amount: 500,
+        transactionDate: TRANSACTION_DATE,
+        accountId: account.id,
+        toAccountId: secondaryAccount.id,
+      });
+
+      const destinationResponse = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ accountId: secondaryAccount.id })
+        .expect(200);
+
+      // Both legs of the transfer involve the destination account while the
+      // unrelated expense does not.
+      expect(destinationResponse.body.meta).toMatchObject({ total: 2 });
+      expect(destinationResponse.body.data).toHaveLength(2);
+      for (const transaction of destinationResponse.body.data) {
+        expect(transaction.type).toBe('TRANSFER');
+        expect(
+          [
+            transaction.accountId,
+            transaction.fromAccountId,
+            transaction.toAccountId,
+          ].includes(secondaryAccount.id),
+        ).toBe(true);
+      }
+      expect(destinationResponse.body.data[0].transferGroupId).toBe(
+        destinationResponse.body.data[1].transferGroupId,
+      );
+
+      const sourceResponse = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ accountId: account.id })
+        .expect(200);
+
+      expect(sourceResponse.body.meta).toMatchObject({ total: 3 });
+    });
+
+    it('should filter by category', async () => {
+      const { account, category, salaryCategory } =
+        await seedCollectionFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: TRANSACTION_DATE,
+        accountId: account.id,
+        categoryId: category.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'INCOME',
+        amount: 1000,
+        transactionDate: TRANSACTION_DATE,
+        accountId: account.id,
+        categoryId: salaryCategory.id,
+      });
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ categoryId: salaryCategory.id })
+        .expect(200);
+
+      expect(response.body.meta).toMatchObject({ total: 1 });
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0]).toMatchObject({
+        categoryId: salaryCategory.id,
+      });
+    });
+
+    it('should filter by date range', async () => {
+      const { account } = await seedCollectionFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: '2026-01-05T08:30:00.000Z',
+        accountId: account.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 200,
+        transactionDate: '2026-01-15T08:30:00.000Z',
+        accountId: account.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 300,
+        transactionDate: '2026-01-25T08:30:00.000Z',
+        accountId: account.id,
+      });
+
+      const fromResponse = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ dateFrom: '2026-01-10T00:00:00.000Z' })
+        .expect(200);
+
+      expect(fromResponse.body.meta).toMatchObject({ total: 2 });
+
+      const toResponse = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ dateTo: '2026-01-10T00:00:00.000Z' })
+        .expect(200);
+
+      expect(toResponse.body.meta).toMatchObject({ total: 1 });
+
+      const rangeResponse = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({
+          dateFrom: '2026-01-10T00:00:00.000Z',
+          dateTo: '2026-01-20T00:00:00.000Z',
+        })
+        .expect(200);
+
+      expect(rangeResponse.body.meta).toMatchObject({ total: 1 });
+      expect(Number(rangeResponse.body.data[0].amount)).toBe(200);
+    });
+
+    it('should sort by transactionDate ascending and descending', async () => {
+      const { account } = await seedCollectionFixtures();
+
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 100,
+        transactionDate: '2026-01-20T08:30:00.000Z',
+        accountId: account.id,
+      });
+      await createTransaction(userA.accessToken, {
+        type: 'EXPENSE',
+        amount: 200,
+        transactionDate: '2026-01-10T08:30:00.000Z',
+        accountId: account.id,
+      });
+
+      const ascending = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ sortBy: 'transactionDate', sortOrder: 'asc' })
+        .expect(200);
+
+      expect(ascending.body.data).toHaveLength(2);
+      expect(
+        new Date(ascending.body.data[0].transactionDate).getTime(),
+      ).toBeLessThan(
+        new Date(ascending.body.data[1].transactionDate).getTime(),
+      );
+
+      const descending = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ sortBy: 'transactionDate', sortOrder: 'desc' })
+        .expect(200);
+
+      expect(descending.body.data).toHaveLength(2);
+      expect(
+        new Date(descending.body.data[0].transactionDate).getTime(),
+      ).toBeGreaterThan(
+        new Date(descending.body.data[1].transactionDate).getTime(),
+      );
+    });
+
+    it('should sort by amount descending', async () => {
+      const { account } = await seedCollectionFixtures();
+
+      for (const amount of [100, 300, 200]) {
+        await createTransaction(userA.accessToken, {
+          type: 'EXPENSE',
+          amount,
+          transactionDate: TRANSACTION_DATE,
+          accountId: account.id,
+        });
+      }
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/transactions')
+        .set('Authorization', `Bearer ${userA.accessToken}`)
+        .query({ sortBy: 'amount', sortOrder: 'desc' })
+        .expect(200);
+
+      expect(
+        response.body.data.map((transaction: { amount: string }) =>
+          Number(transaction.amount),
+        ),
+      ).toEqual([300, 200, 100]);
+    });
+
+    it('should reject invalid query parameters with 400', async () => {
+      const cases: Record<string, unknown>[] = [
+        { limit: 500 },
+        { page: 0 },
+        { type: 'INVALID' },
+        { sortBy: 'password' },
+        { sortOrder: 'random' },
+        { accountId: 'not-a-uuid' },
+        { categoryId: 'not-a-uuid' },
+      ];
+
+      for (const query of cases) {
+        const response = await request(app.getHttpServer())
+          .get('/api/v1/transactions')
+          .set('Authorization', `Bearer ${userA.accessToken}`)
+          .query(query)
+          .expect(400);
+
+        expect(response.body.message).toBe('Validation failed');
+      }
+    });
+  });
+
   describe('GET /api/v1/transactions/:id', () => {
     it('should retrieve an own transaction', async () => {
       const { account, category } = await seedUserResources(userA, {
