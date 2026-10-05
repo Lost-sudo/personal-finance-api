@@ -14,6 +14,10 @@ export function createSwaggerConfig(): DocumentBuilder {
       'Income, expense, and transfer transaction management',
     )
     .addTag('Reports', 'Financial summary and reporting')
+    .addTag(
+      'Recurring Transactions',
+      'Recurring income, expense, and transfer schedule management',
+    )
     .addBearerAuth(
       {
         type: 'http',

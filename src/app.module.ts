@@ -9,6 +9,7 @@ import { CategoriesModule } from './modules/categories/categories.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { TransactionsModule } from './modules/transactions/transactions.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
+import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 
@@ -38,6 +39,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
     AccountsModule,
     TransactionsModule,
     ReportsModule,
+    RecurringTransactionsModule,
     UsersModule,
     AuthModule,
   ],

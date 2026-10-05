@@ -262,6 +262,85 @@ export const financialSummarySchema: SchemaObject = {
   },
 };
 
+export const recurringTransactionSchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    userId: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    type: {
+      type: 'string',
+      enum: ['INCOME', 'EXPENSE', 'TRANSFER'],
+      example: 'EXPENSE',
+    },
+    amount: {
+      type: 'string',
+      example: '2500.00',
+    },
+    description: {
+      type: 'string',
+      nullable: true,
+      maxLength: 255,
+      example: 'Monthly rent',
+    },
+    accountId: {
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    categoryId: {
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    fromAccountId: {
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    toAccountId: {
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    frequency: {
+      type: 'string',
+      enum: ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'],
+      example: 'MONTHLY',
+    },
+    nextRunAt: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-11-01T09:00:00.000Z',
+    },
+    isActive: {
+      type: 'boolean',
+      example: true,
+    },
+    createdAt: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-15T08:30:00.000Z',
+    },
+    updatedAt: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-15T08:30:00.000Z',
+    },
+  },
+};
+
 export function apiResponseSchema(data: SchemaObject): SchemaObject {  return {
     type: 'object',
     required: ['success', 'data'],

@@ -74,9 +74,11 @@ model Account {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions          Transaction[]
-  recurringTransactions RecurringTransaction[]
+  user                      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions              Transaction[]
+  recurringTransactions     RecurringTransaction[] @relation("RecurringAccount")
+  recurringFromTransactions RecurringTransaction[] @relation("RecurringFromAccount")
+  recurringToTransactions   RecurringTransaction[] @relation("RecurringToAccount")
 
   @@unique([userId, name])
   @@index([userId, isArchived])
@@ -105,25 +107,29 @@ model Category {
 }
 
 model Transaction {
-  id              String          @id @default(uuid()) @db.Uuid
-  userId          String          @db.Uuid
-  accountId       String          @db.Uuid
-  categoryId      String?         @db.Uuid
-  type            TransactionType
-  amount          Decimal         @db.Decimal(19, 2)
-  description     String?         @db.VarChar(500)
-  transactionDate DateTime
-  transferGroupId String?         @db.Uuid
-  fromAccountId   String?         @db.Uuid
-  toAccountId     String?         @db.Uuid
-  deletedAt       DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id                     String          @id @default(uuid()) @db.Uuid
+  userId                 String          @db.Uuid
+  accountId              String          @db.Uuid
+  categoryId             String?         @db.Uuid
+  type                   TransactionType
+  amount                 Decimal         @db.Decimal(19, 2)
+  description            String?         @db.VarChar(500)
+  transactionDate        DateTime
+  transferGroupId        String?         @db.Uuid
+  fromAccountId          String?         @db.Uuid
+  toAccountId            String?         @db.Uuid
+  recurringTransactionId String?         @db.Uuid
+  scheduledFor           DateTime?
+  deletedAt              DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account  Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account              Account               @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  category             Category?             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
 
+  @@unique([recurringTransactionId, scheduledFor])
   @@index([userId, transactionDate])
   @@index([userId, type, transactionDate])
   @@index([accountId, transactionDate])
@@ -156,27 +162,37 @@ model Budget {
 }
 
 model RecurringTransaction {
-  id             String             @id @default(uuid()) @db.Uuid
-  userId         String             @db.Uuid
-  accountId      String             @db.Uuid
-  categoryId     String?            @db.Uuid
-  type           TransactionType
-  amount         Decimal            @db.Decimal(19, 2)
-  description    String?            @db.VarChar(500)
-  frequency      RecurringFrequency
-  startDate      DateTime
-  endDate        DateTime?
-  nextOccurrence DateTime
-  isActive       Boolean            @default(true)
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id          String          @id @default(uuid()) @db.Uuid
+  userId      String          @db.Uuid
+  type        TransactionType
+  amount      Decimal         @db.Decimal(19, 2)
+  description String?         @db.VarChar(255)
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account  Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  accountId  String? @db.Uuid
+  categoryId String? @db.Uuid
 
-  @@index([userId, isActive, nextOccurrence])
+  fromAccountId String? @db.Uuid
+  toAccountId   String? @db.Uuid
+
+  frequency RecurringFrequency
+  nextRunAt DateTime
+  isActive  Boolean            @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account?      @relation("RecurringAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  fromAccount  Account?      @relation("RecurringFromAccount", fields: [fromAccountId], references: [id], onDelete: Restrict)
+  toAccount    Account?      @relation("RecurringToAccount", fields: [toAccountId], references: [id], onDelete: Restrict)
+  transactions Transaction[]
+
+  @@index([userId, isActive])
+  @@index([userId, nextRunAt])
   @@index([accountId])
   @@index([categoryId])
+  @@index([fromAccountId])
+  @@index([toAccountId])
   @@map("recurring_transactions")
 }
