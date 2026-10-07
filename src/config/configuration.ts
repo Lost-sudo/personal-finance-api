@@ -31,6 +31,8 @@ export default () => ({
     defaultTtl: Number(process.env.THROTTLE_DEFAULT_TTL ?? 60000),
     authLimit: Number(process.env.THROTTLE_AUTH_LIMIT ?? 10),
     authTtl: Number(process.env.THROTTLE_AUTH_TTL ?? 60000),
+    authStrictLimit: Number(process.env.THROTTLE_AUTH_STRICT_LIMIT ?? 5),
+    authStrictTtl: Number(process.env.THROTTLE_AUTH_STRICT_TTL ?? 60000),
   },
   swagger: {
     enabled:

@@ -8,7 +8,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { registerSchema, type RegisterDto } from './dto/register.dto.js';
@@ -23,9 +23,8 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { successResponse } from '../../common/utils/api-response.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 
-// Auth routes are the brute-force target: strict 10/min budget.
-const AuthThrottle = () => Throttle({ auth: { limit: 10, ttl: 60000 } });
-
+// Login/register feel both auth budgets (strict 5/min wins); refresh and
+// logout skip the strict one via @SkipThrottle and keep 10/min.
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
@@ -120,7 +119,6 @@ export class AuthController {
     description: 'Unable to create account with the provided email.',
   })
   @Post('register')
-  @AuthThrottle()
   async register(
     @Body(new ZodValidationPipe(registerSchema)) dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -167,7 +165,6 @@ export class AuthController {
   })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @AuthThrottle()
   async login(
     @Body(new ZodValidationPipe(loginSchema)) dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -206,7 +203,7 @@ export class AuthController {
   })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @AuthThrottle()
+  @SkipThrottle({ authStrict: true })
   async refresh(
     @Req() req: Request,
     @Body(new ZodValidationPipe(refreshSchema)) body: RefreshDto,
@@ -232,7 +229,7 @@ export class AuthController {
   })
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @AuthThrottle()
+  @SkipThrottle({ authStrict: true })
   async logout(
     @Req() req: Request,
     @Body(new ZodValidationPipe(refreshSchema)) body: RefreshDto,

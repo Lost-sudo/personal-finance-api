@@ -5,7 +5,7 @@ import { configureApp } from '../src/app.setup.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import request from 'supertest';
 
-/** Real-budget regression suite (no guard bypass). Auth calls numbered per the 10/min budget. */
+/** Real-budget regression suite (no guard bypass). Auth calls numbered per the 10/min budget; login/register also feel the strict 5/min budget. */
 describe('Security hardening E2E', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -171,26 +171,36 @@ describe('Security hardening E2E', () => {
         })
         .expect(201);
 
-      let saw429 = false;
-      // Budget is 10/min and register consumed 1: 9 logins pass, then 429.
-      for (let i = 0; i < 12; i++) {
-        const response = await request(burstApp.getHttpServer())
+      // Strict budget is 5/min per login endpoint (buckets are per route,
+      // so register does not consume it): 5 logins pass.
+      for (let i = 0; i < 5; i++) {
+        await request(burstApp.getHttpServer())
           .post('/api/v1/auth/login')
-          .send({ email: burstEmail, password: testPassword });
-
-        if (response.status === 429) {
-          saw429 = true;
-          expect(
-            response.headers['retry-after'] ??
-              response.headers['retry-after-auth'],
-          ).toBeDefined();
-          break;
-        }
-
-        expect(response.status).toBe(200);
+          .send({ email: burstEmail, password: testPassword })
+          .expect(200);
       }
 
-      expect(saw429).toBe(true);
+      // The 6th login exceeds the strict budget.
+      const throttled = await request(burstApp.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: burstEmail, password: testPassword })
+        .expect(429);
+
+      expect(
+        throttled.headers['retry-after'] ??
+          throttled.headers['retry-after-auth'] ??
+          throttled.headers['retry-after-authstrict'],
+      ).toBeDefined();
+
+      // Throttling reveals nothing about account existence: an unknown
+      // email gets the same 429 instead of a 401.
+      await request(burstApp.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          email: `unknown-${Date.now()}@example.com`,
+          password: testPassword,
+        })
+        .expect(429);
 
       const prismaInner = burstApp.get(PrismaService);
       await prismaInner.user

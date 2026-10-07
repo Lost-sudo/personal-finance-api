@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, type ExecutionContext } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller.js';
@@ -89,6 +89,11 @@ import { AuthModule } from './modules/auth/auth.module.js';
         THROTTLE_DEFAULT_TTL: Joi.number().integer().min(1000).default(60000),
         THROTTLE_AUTH_LIMIT: Joi.number().integer().min(1).default(10),
         THROTTLE_AUTH_TTL: Joi.number().integer().min(1000).default(60000),
+        THROTTLE_AUTH_STRICT_LIMIT: Joi.number().integer().min(1).default(5),
+        THROTTLE_AUTH_STRICT_TTL: Joi.number()
+          .integer()
+          .min(1000)
+          .default(60000),
         // Five-field cron expression; validated for shape here and parsed
         // strictly by the CronJob constructor at startup (fail-fast).
         RECURRING_GENERATION_CRON: Joi.string()
@@ -108,6 +113,18 @@ import { AuthModule } from './modules/auth/auth.module.js';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
+        // Both auth budgets apply to authentication routes only. Login and
+        // register feel each (strict wins); refresh/logout skip the strict
+        // one via @SkipThrottle.
+        const skipNonAuthPaths = (context: ExecutionContext): boolean => {
+          const request = context
+            .switchToHttp()
+            .getRequest<{ url?: string }>();
+          const path = (request.url ?? '').split('?')[0];
+
+          return !path.startsWith(`/${GLOBAL_PREFIX}/auth`);
+        };
+
         return {
           throttlers: [
             {
@@ -119,16 +136,19 @@ import { AuthModule } from './modules/auth/auth.module.js';
               name: 'auth',
               limit: configService.get<number>('throttle.authLimit', 10),
               ttl: configService.get<number>('throttle.authTtl', 60000),
-              // The guard checks every named throttler per request, so scope
-              // `auth` to auth routes only.
-              skipIf: (context) => {
-                const request = context
-                  .switchToHttp()
-                  .getRequest<{ url?: string }>();
-                const path = (request.url ?? '').split('?')[0];
-
-                return !path.startsWith(`/${GLOBAL_PREFIX}/auth`);
-              },
+              skipIf: skipNonAuthPaths,
+            },
+            {
+              name: 'authStrict',
+              limit: configService.get<number>(
+                'throttle.authStrictLimit',
+                5,
+              ),
+              ttl: configService.get<number>(
+                'throttle.authStrictTtl',
+                60000,
+              ),
+              skipIf: skipNonAuthPaths,
             },
           ],
         };

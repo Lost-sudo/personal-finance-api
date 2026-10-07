@@ -62,12 +62,16 @@ describe('security configuration', () => {
     delete process.env.THROTTLE_DEFAULT_TTL;
     delete process.env.THROTTLE_AUTH_LIMIT;
     delete process.env.THROTTLE_AUTH_TTL;
+    delete process.env.THROTTLE_AUTH_STRICT_LIMIT;
+    delete process.env.THROTTLE_AUTH_STRICT_TTL;
 
     expect(configuration().throttle).toMatchObject({
       defaultLimit: 100,
       defaultTtl: 60000,
       authLimit: 10,
       authTtl: 60000,
+      authStrictLimit: 5,
+      authStrictTtl: 60000,
     });
   });
 });
