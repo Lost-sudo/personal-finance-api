@@ -1,3 +1,8 @@
+import {
+  DEFAULT_GENERATION_CATCH_UP_LIMIT,
+  DEFAULT_GENERATION_CRON,
+} from '../modules/recurring-transactions/recurring-transaction-scheduler.constants.js';
+
 export default () => ({
   app: {
     name: 'Personal Finance API',
@@ -11,5 +16,13 @@ export default () => ({
   jwt: {
     secret: process.env.JWT_ACCESS_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  },
+  recurring: {
+    generationCron:
+      process.env.RECURRING_GENERATION_CRON ?? DEFAULT_GENERATION_CRON,
+    generationCatchUpLimit: Number(
+      process.env.RECURRING_GENERATION_CATCH_UP_LIMIT ??
+        DEFAULT_GENERATION_CATCH_UP_LIMIT,
+    ),
   },
 });

@@ -9,9 +9,8 @@ import { CreateRecurringTransactionDto } from './dto/create-recurring-transactio
 import { UpdateRecurringTransactionDto } from './dto/update-recurring-transaction.dto.js';
 import { RecurringTransactionQueryDto } from './dto/recurring-transaction-query.dto.js';
 
-// Whitelist mapping client sort keys to Prisma fields. Client input can only
-// ever select one of these keys (also enforced by the Zod query schema), so
-// arbitrary field names never reach Prisma.
+// Client sort keys are whitelisted (also enforced by Zod), so arbitrary field
+// names never reach Prisma.
 const recurringTransactionSortFields = {
   nextRunAt: 'nextRunAt',
   amount: 'amount',
@@ -50,8 +49,7 @@ export class RecurringTransactionsService {
       userId,
       ...(type ? { type } : {}),
       ...(frequency ? { frequency } : {}),
-      // Schedules reference accounts in three roles. The OR matches normal
-      // schedules through accountId plus both sides of transfer schedules.
+      // Match normal schedules via accountId plus both sides of transfers.
       ...(accountId
         ? {
             OR: [
@@ -74,8 +72,7 @@ export class RecurringTransactionsService {
 
     const skip = (page - 1) * limit;
 
-    // Secondary id ordering keeps pagination stable when rows share the
-    // primary sort value.
+    // Secondary id ordering keeps pagination stable on tied sort values.
     const orderBy: Prisma.RecurringTransactionOrderByWithRelationInput[] = [
       { [recurringTransactionSortFields[sortBy]]: sortOrder },
       { id: 'asc' },
@@ -180,8 +177,7 @@ export class RecurringTransactionsService {
       throw new NotFoundException('Recurring transaction not found');
     }
 
-    // Generated transactions survive through onDelete: SetNull with their
-    // recurringTransactionId nulled; only the schedule row is removed.
+    // Generated rows survive via onDelete: SetNull; only the schedule row is removed.
     return this.prisma.recurringTransaction.delete({
       where: {
         id,

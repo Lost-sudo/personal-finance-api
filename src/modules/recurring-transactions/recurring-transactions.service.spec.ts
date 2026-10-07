@@ -293,8 +293,7 @@ describe('RecurringTransactionsService', () => {
     });
 
     it('should reject an archived account with a user-scoped lookup', async () => {
-      // validateAccount filters { userId, isArchived: false }, so an archived
-      // account resolves to null and surfaces as NotFoundException.
+      // Archived accounts resolve to null through the { userId, isArchived } filter.
       prismaMock.account.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -307,7 +306,6 @@ describe('RecurringTransactionsService', () => {
         }),
       ).rejects.toThrow(NotFoundException);
 
-      // Ownership is enforced through the user-scoped archived filter.
       expect(prismaMock.account.findFirst).toHaveBeenCalledWith({
         where: { id: 'archived-account', userId: 'user-1', isArchived: false },
       });
@@ -488,7 +486,7 @@ describe('RecurringTransactionsService', () => {
     });
 
     it('should treat another user\'s schedule as not found', async () => {
-      // The row exists under user-2, so the user-scoped lookup returns null.
+      // Row lives under user-2, so the user-scoped lookup returns null.
       prismaMock.recurringTransaction.findFirst.mockResolvedValue(null);
 
       await expect(service.findOne('user-1', 'other-user-schedule')).rejects.toThrow(
@@ -525,6 +523,27 @@ describe('RecurringTransactionsService', () => {
         where: { id: 'recurring-1' },
         data: dto,
       });
+    });
+
+    it('should never modify generated history when the schedule is edited', async () => {
+      // Editing a schedule writes only the schedule row; history is untouched.
+      prismaMock.recurringTransaction.findFirst.mockResolvedValue(
+        baseSchedule,
+      );
+      prismaMock.recurringTransaction.update.mockResolvedValue({
+        ...baseSchedule,
+        amount: 3000,
+        description: 'New rent',
+      });
+
+      await service.update('user-1', 'recurring-1', {
+        amount: 3000,
+        description: 'New rent',
+      });
+
+      expect(prismaMock.transaction.delete).not.toHaveBeenCalled();
+      expect(prismaMock.transaction.deleteMany).not.toHaveBeenCalled();
+      expect(prismaMock.transaction.updateMany).not.toHaveBeenCalled();
     });
 
     it('should revalidate changed financial references', async () => {
@@ -594,8 +613,7 @@ describe('RecurringTransactionsService', () => {
     });
 
     it('should reject a type change at the validation boundary', () => {
-      // Both update schemas are strictObjects without a `type` field, so
-      // immutability is enforced by validation before the service is reached.
+      // strictObject without `type` enforces immutability before the service runs.
       const rejected = updateRecurringTransactionSchema.safeParse({
         type: 'INCOME',
         amount: 3000,
@@ -652,7 +670,7 @@ describe('RecurringTransactionsService', () => {
       prismaMock.recurringTransaction.findFirst.mockResolvedValue(
         baseSchedule,
       );
-      // Archived accounts resolve to null through the isArchived filter.
+      // Archived accounts resolve to null through the filter.
       prismaMock.account.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -672,7 +690,7 @@ describe('RecurringTransactionsService', () => {
     });
 
     it('should enforce ownership when updating another user\'s schedule', async () => {
-      // The row belongs to user-2, so the user-scoped lookup returns null.
+      // Row lives under user-2, so the user-scoped lookup returns null.
       prismaMock.recurringTransaction.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -714,10 +732,8 @@ describe('RecurringTransactionsService', () => {
     });
 
     it('should delete only the schedule and leave generated transactions untouched', async () => {
-      // Preservation itself is enforced by the database
-      // (Transaction.recurringTransactionId is onDelete: SetNull), so the
-      // unit test proves remove() only deletes the schedule row and never
-      // touches the transaction delegate.
+      // Preservation is enforced by onDelete: SetNull; here prove remove()
+      // never touches the transaction delegate.
       prismaMock.recurringTransaction.findFirst.mockResolvedValue(
         baseSchedule,
       );
