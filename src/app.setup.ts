@@ -1,8 +1,9 @@
-import { INestApplication } from '@nestjs/common';
+import { HttpStatus, INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { json, urlencoded } from 'express';
+import { json, NextFunction, Request, Response, urlencoded } from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { isEntityTooLargeError } from './common/filters/global-exception.filter.js';
 
 export const GLOBAL_PREFIX = 'api/v1';
 
@@ -26,6 +27,26 @@ export function configureApp(app: INestApplication): INestApplication {
 
   app.use(json({ limit: JSON_BODY_LIMIT }));
   app.use(urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
+
+  // Limit errors bypass Nest filters on some transports; normalize them
+  // here so every client gets the standard 413 envelope. All other errors
+  // pass through untouched.
+  app.use(
+    (err: unknown, req: Request, res: Response, next: NextFunction): void => {
+      if (!isEntityTooLargeError(err) || res.headersSent) {
+        next(err);
+        return;
+      }
+
+      res.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
+        success: false,
+        statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+        message: 'Request entity too large',
+        timestamp: new Date().toISOString(),
+        path: req.originalUrl,
+      });
+    },
+  );
 
   configureCors(app, configService);
 

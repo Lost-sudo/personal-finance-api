@@ -84,12 +84,20 @@ describe('Security hardening E2E', () => {
       .expect(400);
   });
 
-  it('rejects oversized JSON bodies', async () => {
-    await request(app.getHttpServer())
+  it('rejects oversized JSON bodies with the global error format', async () => {
+    const response = await request(app.getHttpServer())
       .post('/api/v1/transactions')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ type: 'EXPENSE', amount: 1, filler: 'x'.repeat(200_000) })
       .expect(413);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      statusCode: 413,
+      message: 'Request entity too large',
+    });
+    expect(response.body.timestamp).toEqual(expect.any(String));
+    expect(response.body.path).toBe('/api/v1/transactions');
   });
 
   it('rotates refresh tokens and rejects reuse with a generic error', async () => {

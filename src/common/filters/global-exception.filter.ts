@@ -9,6 +9,21 @@ import {
 import { Request, Response } from 'express';
 import { Prisma } from '../../generated/prisma/client.js';
 
+// Body-parser limit errors: 413 with the standard envelope instead of a
+// masked 500 or a bare Express error body.
+export function isEntityTooLargeError(exception: unknown): boolean {
+  if (typeof exception !== 'object' || exception === null) {
+    return false;
+  }
+
+  const candidate = exception as {
+    type?: unknown;
+    statusCode?: unknown;
+  };
+
+  return candidate.type === 'entity.too.large' && candidate.statusCode === 413;
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -35,6 +50,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         statusCode: status,
         message,
         ...(errors && { errors }),
+        timestamp,
+        path,
+      });
+
+      return;
+    }
+
+    if (isEntityTooLargeError(exception)) {
+      response.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
+        success: false,
+        statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+        message: 'Request entity too large',
         timestamp,
         path,
       });
