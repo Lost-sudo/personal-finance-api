@@ -38,10 +38,12 @@ import { AuthModule } from './modules/auth/auth.module.js';
         DATABASE_URL: Joi.string()
           .uri({ scheme: ['postgresql', 'postgres'] })
           .required(),
-        JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+        JWT_ACCESS_SECRET: Joi.string()
+          .min(32)
+          .when('NODE_ENV', { is: 'test', otherwise: Joi.required() }),
         JWT_REFRESH_SECRET: Joi.string()
           .min(32)
-          .required()
+          .when('NODE_ENV', { is: 'test', otherwise: Joi.required() })
           .invalid(Joi.ref('JWT_ACCESS_SECRET'))
           .messages({
             'any.invalid':
@@ -53,7 +55,32 @@ import { AuthModule } from './modules/auth/auth.module.js';
         JWT_REFRESH_EXPIRES_IN: Joi.string()
           .pattern(/^\d+[smhd]$/, 'e.g. 15m, 1h, 7d')
           .default('7d'),
-        CORS_ORIGIN: Joi.string().allow('').optional(),
+        CORS_ORIGIN: Joi.string()
+          .allow('')
+          .optional()
+          .custom((value: string, helpers: Joi.CustomHelpers) => {
+            if (value === '') {
+              return value;
+            }
+
+            const origins = value
+              .split(',')
+              .map((origin) => origin.trim())
+              .filter(Boolean);
+            const allHttp = origins.length > 0 && origins.every((origin) =>
+              /^https?:\/\/[^/\s]+(:\d+)?(\/\S*)?$/.test(origin),
+            );
+
+            if (!allHttp) {
+              return helpers.error('string.uriList');
+            }
+
+            return value;
+          })
+          .messages({
+            'string.uriList':
+              'CORS_ORIGIN must be empty or a comma-separated list of http(s) URLs',
+          }),
         SWAGGER_ENABLED: Joi.string().valid('true', 'false', '').optional(),
         THROTTLE_DEFAULT_LIMIT: Joi.number()
           .integer()
