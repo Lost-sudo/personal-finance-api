@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
@@ -18,6 +19,14 @@ describe('AuthController', () => {
           useValue: {
             register: vi.fn(),
             login: vi.fn(),
+            refresh: vi.fn(),
+            logout: vi.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: vi.fn().mockReturnValue('development'),
           },
         },
       ],

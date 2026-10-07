@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const registerSchema = z.object({
+export const registerSchema = z.strictObject({
   // Trim before the format check so padded emails are accepted.
   email: z
     .string()

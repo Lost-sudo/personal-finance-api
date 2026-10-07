@@ -14,14 +14,19 @@ async function bootstrap() {
 
   configureApp(app);
 
-  const swaggerConfig = createSwaggerConfig();
+  // Swagger outside production only; route schemas aid attackers.
+  const swaggerEnabled = configService.get<boolean>('swagger.enabled', false);
 
-  const swaggerDocument = SwaggerModule.createDocument(
-    app,
-    swaggerConfig.build(),
-  );
+  if (swaggerEnabled) {
+    const swaggerConfig = createSwaggerConfig();
 
-  SwaggerModule.setup('api/docs', app, swaggerDocument);
+    const swaggerDocument = SwaggerModule.createDocument(
+      app,
+      swaggerConfig.build(),
+    );
+
+    SwaggerModule.setup('api/docs', app, swaggerDocument);
+  }
 
   app.useGlobalFilters(new GlobalExceptionFilter());
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const updateCategorySchema = z
-  .object({
+  .strictObject({
     name: z
       .string()
       .trim()

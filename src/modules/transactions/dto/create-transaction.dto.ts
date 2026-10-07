@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const createTransactionSchema = z.object({
+export const createTransactionSchema = z.strictObject({
   type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER']),
   amount: z
     .number({ message: 'Amount is required' })

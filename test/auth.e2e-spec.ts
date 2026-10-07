@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import request from 'supertest';
@@ -13,9 +14,13 @@ describe('Auth E2E', () => {
   const testPassword = 'Password123!';
 
   beforeAll(async () => {
+    // Throttling bypassed for determinism; see security.e2e-spec.ts.
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleFixture.createNestApplication();
 

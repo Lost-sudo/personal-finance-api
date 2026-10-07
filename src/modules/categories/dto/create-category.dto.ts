@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const createCategorySchema = z.object({
+export const createCategorySchema = z.strictObject({
   name: z
     .string()
     .trim()

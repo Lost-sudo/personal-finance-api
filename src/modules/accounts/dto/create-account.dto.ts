@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const createAccountSchema = z.object({
+export const createAccountSchema = z.strictObject({
   name: z
     .string()
     .trim()

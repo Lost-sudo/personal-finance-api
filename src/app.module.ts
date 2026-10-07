@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import configuration from './config/configuration.js';
 import Joi from 'joi';
@@ -10,6 +12,7 @@ import {
   DEFAULT_GENERATION_CRON,
 } from './modules/recurring-transactions/recurring-transaction-scheduler.constants.js';
 import { DatabaseModule } from './database/database.module.js';
+import { GLOBAL_PREFIX } from './app.setup.js';
 import { CategoriesModule } from './modules/categories/categories.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { TransactionsModule } from './modules/transactions/transactions.module.js';
@@ -36,7 +39,29 @@ import { AuthModule } from './modules/auth/auth.module.js';
           .uri({ scheme: ['postgresql', 'postgres'] })
           .required(),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
-        JWT_EXPIRES_IN: Joi.string().default('15m'),
+        JWT_REFRESH_SECRET: Joi.string()
+          .min(32)
+          .required()
+          .invalid(Joi.ref('JWT_ACCESS_SECRET'))
+          .messages({
+            'any.invalid':
+              'JWT_REFRESH_SECRET must differ from JWT_ACCESS_SECRET',
+          }),
+        JWT_EXPIRES_IN: Joi.string()
+          .pattern(/^\d+[smhd]$/, 'e.g. 15m, 1h, 7d')
+          .default('15m'),
+        JWT_REFRESH_EXPIRES_IN: Joi.string()
+          .pattern(/^\d+[smhd]$/, 'e.g. 15m, 1h, 7d')
+          .default('7d'),
+        CORS_ORIGIN: Joi.string().allow('').optional(),
+        SWAGGER_ENABLED: Joi.string().valid('true', 'false', '').optional(),
+        THROTTLE_DEFAULT_LIMIT: Joi.number()
+          .integer()
+          .min(1)
+          .default(100),
+        THROTTLE_DEFAULT_TTL: Joi.number().integer().min(1000).default(60000),
+        THROTTLE_AUTH_LIMIT: Joi.number().integer().min(1).default(10),
+        THROTTLE_AUTH_TTL: Joi.number().integer().min(1000).default(60000),
         // Five-field cron expression; validated for shape here and parsed
         // strictly by the CronJob constructor at startup (fail-fast).
         RECURRING_GENERATION_CRON: Joi.string()
@@ -52,6 +77,36 @@ import { AuthModule } from './modules/auth/auth.module.js';
       }),
     }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        return {
+          throttlers: [
+            {
+              name: 'default',
+              limit: configService.get<number>('throttle.defaultLimit', 100),
+              ttl: configService.get<number>('throttle.defaultTtl', 60000),
+            },
+            {
+              name: 'auth',
+              limit: configService.get<number>('throttle.authLimit', 10),
+              ttl: configService.get<number>('throttle.authTtl', 60000),
+              // The guard checks every named throttler per request, so scope
+              // `auth` to auth routes only.
+              skipIf: (context) => {
+                const request = context
+                  .switchToHttp()
+                  .getRequest<{ url?: string }>();
+                const path = (request.url ?? '').split('?')[0];
+
+                return !path.startsWith(`/${GLOBAL_PREFIX}/auth`);
+              },
+            },
+          ],
+        };
+      },
+    }),
     DatabaseModule,
     CategoriesModule,
     AccountsModule,
@@ -62,6 +117,10 @@ import { AuthModule } from './modules/auth/auth.module.js';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Global rate limiting; auth routes use the stricter `auth` budget.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const accountQuerySchema = z.object({
+export const accountQuerySchema = z.strictObject({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   type: z

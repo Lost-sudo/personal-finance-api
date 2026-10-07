@@ -56,6 +56,13 @@ export class AuthResponseDto {
   accessToken: string;
 
   @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description:
+      'Long-lived JWT refresh token. Also set as an httpOnly cookie; non-browser clients may persist it in secure storage instead.',
+  })
+  refreshToken: string;
+
+  @ApiProperty({
     type: AuthUserDto,
   })
   user: AuthUserDto;

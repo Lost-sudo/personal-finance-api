@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service.js';
 import { UsersService } from '../users/users.service.js';
 import { PasswordService } from './password.service.js';
+import { RefreshTokenService } from './refresh-token.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 
@@ -22,6 +23,12 @@ describe('AuthService', () => {
     signAsync: vi.fn(),
   };
 
+  const refreshTokenServiceMock = {
+    issue: vi.fn(),
+    rotate: vi.fn(),
+    revoke: vi.fn(),
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
@@ -39,6 +46,10 @@ describe('AuthService', () => {
         {
           provide: JwtService,
           useValue: jwtServiceMock,
+        },
+        {
+          provide: RefreshTokenService,
+          useValue: refreshTokenServiceMock,
         },
       ],
     }).compile();
@@ -82,10 +93,16 @@ describe('AuthService', () => {
 
       jwtServiceMock.signAsync.mockResolvedValue('access-token');
 
+      refreshTokenServiceMock.issue.mockResolvedValue({
+        refreshToken: 'refresh-token',
+        expiresAt: new Date('2026-01-08T00:00:00.000Z'),
+      });
+
       const result = await service.register(dto);
 
       expect(result).toEqual({
         accessToken: 'access-token',
+        refreshToken: 'refresh-token',
         user: {
           id: 'user-123',
           email: 'john@example.com',
@@ -169,10 +186,16 @@ describe('AuthService', () => {
 
       jwtServiceMock.signAsync.mockResolvedValue('access-token');
 
+      refreshTokenServiceMock.issue.mockResolvedValue({
+        refreshToken: 'refresh-token',
+        expiresAt: new Date('2026-01-08T00:00:00.000Z'),
+      });
+
       const result = await service.login(dto);
 
       expect(result).toEqual({
         accessToken: 'access-token',
+        refreshToken: 'refresh-token',
         user: {
           id: 'user-123',
           email: 'john@example.com',

@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module.js';
@@ -38,9 +39,13 @@ describe('Accounts E2E', () => {
   }
 
   beforeAll(async () => {
+    // Throttling bypassed for determinism; see security.e2e-spec.ts.
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleFixture.createNestApplication();
 
