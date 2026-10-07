@@ -141,7 +141,13 @@ describe('Security hardening E2E', () => {
     const logout = await agent.post('/api/v1/auth/logout').send({}).expect(204);
 
     const cleared: string[] = [logout.headers['set-cookie'] ?? []].flat();
-    expect(cleared.find((c) => c.startsWith('refresh_token='))).toBeDefined();
+    const clearedCookie = cleared.find((c) =>
+      c.startsWith('refresh_token='),
+    );
+    expect(clearedCookie).toBeDefined();
+    // The cookie must actually expire (Max-Age=0 or a past Expires),
+    // not just be overwritten.
+    expect(clearedCookie).toMatch(/max-age=0|expires=thu, 01 jan 1970/i);
 
     // Separate client presenting the revoked token body-side.
     await request(app.getHttpServer())
