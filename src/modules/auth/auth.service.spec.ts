@@ -11,6 +11,7 @@ describe('AuthService', () => {
 
   const userServiceMock = {
     findByEmail: vi.fn(),
+    findById: vi.fn(),
     create: vi.fn(),
   };
 
@@ -230,7 +231,10 @@ describe('AuthService', () => {
 
       userServiceMock.findByEmail.mockResolvedValue(null);
 
-      await expect(service.login(dto)).rejects.toThrow(UnauthorizedException);
+      // Unknown emails and wrong passwords must be indistinguishable.
+      await expect(service.login(dto)).rejects.toThrow(
+        'Invalid email or password',
+      );
 
       expect(passwordServiceMock.verify).not.toHaveBeenCalled();
 
@@ -257,7 +261,9 @@ describe('AuthService', () => {
 
       passwordServiceMock.verify.mockResolvedValue(false);
 
-      await expect(service.login(dto)).rejects.toThrow(UnauthorizedException);
+      await expect(service.login(dto)).rejects.toThrow(
+        'Invalid email or password',
+      );
 
       expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
     });
@@ -285,6 +291,108 @@ describe('AuthService', () => {
       await expect(service.login(dto)).rejects.toThrow(UnauthorizedException);
 
       expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refresh', () => {
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    const updatedAt = new Date('2026-01-01T00:00:00.000Z');
+
+    const user = {
+      id: 'user-123',
+      email: 'john@example.com',
+      passwordHash: 'hashed-password',
+      firstName: 'John',
+      lastName: 'Doe',
+      isActive: true,
+      emailVerifiedAt: null,
+      createdAt,
+      updatedAt,
+    };
+
+    it('should rotate into a fresh pair', async () => {
+      refreshTokenServiceMock.rotate.mockResolvedValue({ userId: 'user-123' });
+      userServiceMock.findById.mockResolvedValue(user);
+      jwtServiceMock.signAsync.mockResolvedValue('new-access-token');
+      refreshTokenServiceMock.issue.mockResolvedValue({
+        refreshToken: 'new-refresh-token',
+        expiresAt: new Date('2026-01-08T00:00:00.000Z'),
+      });
+
+      const result = await service.refresh('old-refresh-token');
+
+      expect(refreshTokenServiceMock.rotate).toHaveBeenCalledWith(
+        'old-refresh-token',
+      );
+      expect(jwtServiceMock.signAsync).toHaveBeenCalledWith({
+        sub: 'user-123',
+      });
+      expect(result).toEqual({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        user: {
+          id: 'user-123',
+          email: 'john@example.com',
+          firstName: 'John',
+          lastName: 'Doe',
+          isActive: true,
+          emailVerifiedAt: null,
+          createdAt,
+          updatedAt,
+        },
+      });
+    });
+
+    it('should reject a missing token with the generic error', async () => {
+      await expect(service.refresh(undefined)).rejects.toThrow(
+        'Invalid or expired refresh token',
+      );
+
+      expect(refreshTokenServiceMock.rotate).not.toHaveBeenCalled();
+    });
+
+    it('should reject when the rotated user is inactive', async () => {
+      refreshTokenServiceMock.rotate.mockResolvedValue({ userId: 'user-123' });
+      userServiceMock.findById.mockResolvedValue({
+        ...user,
+        isActive: false,
+      });
+
+      await expect(service.refresh('old-refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
+      expect(refreshTokenServiceMock.issue).not.toHaveBeenCalled();
+    });
+
+    it('should reject when the rotated user no longer exists', async () => {
+      refreshTokenServiceMock.rotate.mockResolvedValue({ userId: 'user-123' });
+      userServiceMock.findById.mockResolvedValue(null);
+
+      await expect(service.refresh('old-refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    it('should revoke the presented token', async () => {
+      refreshTokenServiceMock.revoke.mockResolvedValue(undefined);
+
+      await service.logout('raw-refresh-token');
+
+      expect(refreshTokenServiceMock.revoke).toHaveBeenCalledWith(
+        'raw-refresh-token',
+      );
+    });
+
+    it('should resolve silently without a token', async () => {
+      await expect(service.logout(undefined)).resolves.toBeUndefined();
+
+      expect(refreshTokenServiceMock.revoke).not.toHaveBeenCalled();
     });
   });
 });
