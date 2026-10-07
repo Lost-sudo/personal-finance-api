@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../../../database/prisma.service.js';
-import { UsersService } from '../../users/users.service.js';
+import { PrismaService } from '../../database/prisma.service.js';
+import { UsersService } from '../users/users.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
 
 const REFRESH_SECRET = 'refresh-spec-secret-key-32-chars!!!';

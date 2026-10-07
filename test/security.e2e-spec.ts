@@ -56,7 +56,7 @@ describe('Security hardening E2E', () => {
 
     accessToken = response.body.data.accessToken as string;
 
-    const cookies: string[] = response.headers['set-cookie'] ?? [];
+    const cookies: string[] = [response.headers['set-cookie'] ?? []].flat();
     const refreshCookie = cookies.find((c) => c.startsWith('refresh_token='));
     expect(refreshCookie).toBeDefined();
     expect(refreshCookie?.toLowerCase()).toContain('httponly');
@@ -65,6 +65,8 @@ describe('Security hardening E2E', () => {
 
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-frame-options']).toBe('SAMEORIGIN');
+    expect(response.headers['x-dns-prefetch-control']).toBe('off');
+    expect(response.headers['x-powered-by']).toBeUndefined();
     expect(response.headers['x-ratelimit-limit']).toBeDefined();
   });
 
@@ -130,7 +132,7 @@ describe('Security hardening E2E', () => {
     // auth #6 (logout itself is an auth route).
     const logout = await agent.post('/api/v1/auth/logout').send({}).expect(204);
 
-    const cleared: string[] = logout.headers['set-cookie'] ?? [];
+    const cleared: string[] = [logout.headers['set-cookie'] ?? []].flat();
     expect(cleared.find((c) => c.startsWith('refresh_token='))).toBeDefined();
 
     // Separate client presenting the revoked token body-side.
