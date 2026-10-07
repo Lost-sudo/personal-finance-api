@@ -87,6 +87,27 @@ describe('Auth E2E', () => {
         })
         .expect(400);
     });
+
+    it('should not reveal account existence on duplicate registration', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: testEmail,
+          password: testPassword,
+          firstName: 'E2E',
+          lastName: 'Test',
+        })
+        .expect(409);
+
+      const message = String(response.body.message ?? '');
+      expect(message).toBe(
+        'Unable to create account with the provided email.',
+      );
+      expect(message.toLowerCase()).not.toContain(testEmail.toLowerCase());
+      for (const hint of ['exists', 'taken', 'duplicate', 'already']) {
+        expect(message.toLowerCase()).not.toContain(hint);
+      }
+    });
   });
 
   describe('POST /api/v1/auth/login', () => {
@@ -121,6 +142,48 @@ describe('Auth E2E', () => {
           password: 'WrongPassword123!',
         })
         .expect(401);
+    });
+
+    it('should return the identical failure for unknown emails', async () => {
+      const wrongPassword = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          email: testEmail,
+          password: 'WrongPassword123!',
+        })
+        .expect(401);
+
+      const unknownEmail = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          email: `unknown-${Date.now()}@example.com`,
+          password: 'WrongPassword123!',
+        })
+        .expect(401);
+
+      expect(unknownEmail.body.message).toBe(wrongPassword.body.message);
+      expect(unknownEmail.body.message).toBe('Invalid email or password');
+    });
+
+    it('should not leak sensitive details in login failures', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          email: testEmail,
+          password: 'WrongPassword123!',
+        })
+        .expect(401);
+
+      const serialized = JSON.stringify(response.body).toLowerCase();
+      for (const leak of [
+        'passwordhash',
+        'stack',
+        'prisma',
+        'accesstoken',
+        'refreshtoken',
+      ]) {
+        expect(serialized).not.toContain(leak);
+      }
     });
   });
 });
