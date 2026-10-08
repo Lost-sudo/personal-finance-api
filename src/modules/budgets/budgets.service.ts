@@ -9,10 +9,9 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { CreateBudgetDto } from './dto/create-budget.dto.js';
 import { UpdateBudgetDto } from './dto/update-budget.dto.js';
 import { BudgetQueryDto } from './dto/budget-query.dto.js';
+import { buildBudgetProgress } from './budget-progress.util.js';
 
-// Whitelist mapping client sort keys to Prisma fields. Client input can only
-// ever select one of these keys (also enforced by the Zod query schema), so
-// arbitrary field names never reach Prisma.
+// Client sort keys mapped to Prisma fields; unknown keys can't reach Prisma.
 const budgetSortFields = {
   startDate: 'startDate',
   amount: 'amount',
@@ -57,8 +56,7 @@ export class BudgetsService {
 
     const skip = (page - 1) * limit;
 
-    // Secondary id ordering keeps pagination stable when rows share the
-    // primary sort value.
+    // Tie-break on id for stable pagination.
     const orderBy: Prisma.BudgetOrderByWithRelationInput[] = [
       { [budgetSortFields[sortBy]]: sortOrder },
       { id: 'asc' },
@@ -102,10 +100,7 @@ export class BudgetsService {
     userId: string,
     budget: { categoryId: string; startDate: Date; endDate: Date },
   ): Promise<Prisma.Decimal> {
-    // Spending is always derived from the Transaction ledger, never stored
-    // on the Budget. PostgreSQL computes the SUM over DECIMAL(19,2) and
-    // Prisma returns a Decimal, so no JavaScript floating-point arithmetic
-    // is involved. Bounds are inclusive on both ends.
+    // Spending is derived via DB SUM over Decimal; bounds inclusive.
     const result = await this.prisma.transaction.aggregate({
       _sum: { amount: true },
       where: {
@@ -121,6 +116,28 @@ export class BudgetsService {
     });
 
     return result._sum.amount ?? new Prisma.Decimal(0);
+  }
+
+  async getProgress(userId: string, id: string) {
+    // findOne enforces ownership (404 for other users' budgets).
+    const budget = await this.findOne(userId, id);
+    const spent = await this.calculateSpentAmount(userId, budget);
+    const progress = buildBudgetProgress(budget, spent);
+
+    return {
+      id: budget.id,
+      name: budget.name,
+      categoryId: budget.categoryId,
+      budgetAmount: new Prisma.Decimal(budget.amount).toFixed(2),
+      spentAmount: progress.spentAmount,
+      remainingAmount: progress.remainingAmount,
+      percentageUsed: progress.percentageUsed,
+      status: progress.status,
+      period: {
+        startDate: budget.startDate,
+        endDate: budget.endDate,
+      },
+    };
   }
 
   async update(userId: string, id: string, dto: UpdateBudgetDto) {
@@ -178,8 +195,7 @@ export class BudgetsService {
       throw new NotFoundException('Budget not found');
     }
 
-    // Budgets hold no transactions: Transaction has no foreign key to
-    // Budget, so deleting a budget can never delete transactions.
+    // No Transaction FK references Budget; delete is always safe.
     return this.prisma.budget.delete({
       where: {
         id,

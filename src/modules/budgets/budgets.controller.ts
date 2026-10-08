@@ -45,6 +45,7 @@ import {
 } from '../../common/utils/api-response.js';
 import {
   apiResponseSchema,
+  budgetProgressSchema,
   budgetSchema,
   conflictErrorSchema,
   notFoundErrorSchema,
@@ -239,6 +240,41 @@ export class BudgetsController {
       total: result.total,
       totalPages,
     });
+  }
+
+  @ApiOperation({
+    summary: 'Get budget progress',
+    description:
+      'Returns a budget belonging to the current user together with its calculated spending progress.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Budget UUID.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Budget progress successfully retrieved.',
+    schema: apiResponseSchema(budgetProgressSchema),
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid budget id.',
+    schema: validationErrorSchema,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Budget not found.',
+    schema: notFoundErrorSchema,
+  })
+  @Get(':id/progress')
+  async getProgress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.budgetsService.getProgress(user.id, id);
+
+    return successResponse(result);
   }
 
   @ApiOperation({

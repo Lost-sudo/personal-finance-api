@@ -414,40 +414,66 @@ describe('BudgetsService', () => {
   });
 
   describe('buildBudgetProgress', () => {
-    it('should derive remaining, percentage, and WITHIN status without float arithmetic', () => {
+    it('should derive remaining, percentage, and ON_TRACK status without float arithmetic', () => {
       const progress = buildBudgetProgress(
-        { amount: new Prisma.Decimal('15000.00') },
-        new Prisma.Decimal('3750.50'),
+        { amount: new Prisma.Decimal('10000.00') },
+        new Prisma.Decimal('6750.00'),
       );
 
       expect(progress).toEqual({
-        spentAmount: '3750.50',
-        remainingAmount: '11249.50',
-        percentageUsed: '25.00',
-        status: 'WITHIN',
+        spentAmount: '6750.00',
+        remainingAmount: '3250.00',
+        percentageUsed: 67.5,
+        status: 'ON_TRACK',
       });
     });
 
-    it('should report WITHIN at exactly 100% and OVER above it', () => {
+    it('should report NEAR_LIMIT between 80% and 100%', () => {
+      const progress = buildBudgetProgress(
+        { amount: new Prisma.Decimal('10000.00') },
+        new Prisma.Decimal('8500.00'),
+      );
+
+      expect(progress).toEqual({
+        spentAmount: '8500.00',
+        remainingAmount: '1500.00',
+        percentageUsed: 85,
+        status: 'NEAR_LIMIT',
+      });
+    });
+
+    it('should report NEAR_LIMIT at exactly 80%', () => {
+      const progress = buildBudgetProgress(
+        { amount: new Prisma.Decimal('100.00') },
+        new Prisma.Decimal('80.00'),
+      );
+
+      expect(progress.status).toBe('NEAR_LIMIT');
+      expect(progress.percentageUsed).toBe(80);
+    });
+
+    it('should report EXCEEDED at exactly 100% with no clamping', () => {
       const exact = buildBudgetProgress(
         { amount: new Prisma.Decimal('100.00') },
         new Prisma.Decimal('100.00'),
       );
 
-      expect(exact.status).toBe('WITHIN');
+      expect(exact.status).toBe('EXCEEDED');
       expect(exact.remainingAmount).toBe('0.00');
-      expect(exact.percentageUsed).toBe('100.00');
+      expect(exact.percentageUsed).toBe(100);
+    });
 
+    it('should report negative remaining and percentage above 100% when over budget', () => {
       const over = buildBudgetProgress(
-        { amount: new Prisma.Decimal('100.00') },
-        new Prisma.Decimal('120.75'),
+        { amount: new Prisma.Decimal('10000.00') },
+        new Prisma.Decimal('12500.00'),
       );
 
       expect(over).toEqual({
-        spentAmount: '120.75',
-        remainingAmount: '-20.75',
-        percentageUsed: '120.75',
-        status: 'OVER',
+        spentAmount: '12500.00',
+        remainingAmount: '-2500.00',
+        percentageUsed: 125,
+        status: 'EXCEEDED',
       });
     });
 
@@ -460,9 +486,84 @@ describe('BudgetsService', () => {
       expect(progress).toEqual({
         spentAmount: '0.00',
         remainingAmount: '500.00',
-        percentageUsed: '0.00',
-        status: 'WITHIN',
+        percentageUsed: 0,
+        status: 'ON_TRACK',
       });
+    });
+  });
+
+  describe('getProgress', () => {
+    const storedBudget = {
+      id: 'budget-1',
+      userId,
+      name: 'October Food Budget',
+      categoryId,
+      amount: new Prisma.Decimal('10000.00'),
+      period: 'MONTHLY',
+      startDate: new Date('2026-10-01T00:00:00.000Z'),
+      endDate: new Date('2026-10-31T23:59:59.000Z'),
+    };
+
+    it('should return budget info with calculated progress', async () => {
+      prismaMock.budget.findFirst.mockResolvedValue(storedBudget);
+      prismaMock.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: new Prisma.Decimal('6750.00') },
+      });
+
+      const result = await service.getProgress(userId, 'budget-1');
+
+      expect(result).toEqual({
+        id: 'budget-1',
+        name: 'October Food Budget',
+        categoryId,
+        budgetAmount: '10000.00',
+        spentAmount: '6750.00',
+        remainingAmount: '3250.00',
+        percentageUsed: 67.5,
+        status: 'ON_TRACK',
+        period: {
+          startDate: storedBudget.startDate,
+          endDate: storedBudget.endDate,
+        },
+      });
+
+      expect(prismaMock.budget.findFirst).toHaveBeenCalledWith({
+        where: { id: 'budget-1', userId },
+      });
+    });
+
+    it('should return zero spending when there are no transactions', async () => {
+      prismaMock.budget.findFirst.mockResolvedValue(storedBudget);
+      prismaMock.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
+
+      const result = await service.getProgress(userId, 'budget-1');
+
+      expect(result).toEqual({
+        id: 'budget-1',
+        name: 'October Food Budget',
+        categoryId,
+        budgetAmount: '10000.00',
+        spentAmount: '0.00',
+        remainingAmount: '10000.00',
+        percentageUsed: 0,
+        status: 'ON_TRACK',
+        period: {
+          startDate: storedBudget.startDate,
+          endDate: storedBudget.endDate,
+        },
+      });
+    });
+
+    it('should throw NotFoundException for another user’s budget without aggregating', async () => {
+      prismaMock.budget.findFirst.mockResolvedValue(null);
+
+      await expect(service.getProgress(userId, 'budget-other')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(prismaMock.transaction.aggregate).not.toHaveBeenCalled();
     });
   });
 });

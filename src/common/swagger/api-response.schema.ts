@@ -396,6 +396,63 @@ export const budgetSchema: SchemaObject = {
   },
 };
 
+export const budgetProgressSchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    name: {
+      type: 'string',
+      example: 'October Food Budget',
+      maxLength: 100,
+    },
+    categoryId: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    budgetAmount: {
+      type: 'string',
+      example: '10000.00',
+    },
+    spentAmount: {
+      type: 'string',
+      example: '6750.00',
+    },
+    remainingAmount: {
+      type: 'string',
+      example: '3250.00',
+    },
+    percentageUsed: {
+      type: 'number',
+      example: 67.5,
+    },
+    status: {
+      type: 'string',
+      enum: ['ON_TRACK', 'NEAR_LIMIT', 'EXCEEDED'],
+      example: 'ON_TRACK',
+    },
+    period: {
+      type: 'object',
+      properties: {
+        startDate: {
+          type: 'string',
+          format: 'date-time',
+          example: '2026-10-01T00:00:00.000Z',
+        },
+        endDate: {
+          type: 'string',
+          format: 'date-time',
+          example: '2026-10-31T23:59:59.000Z',
+        },
+      },
+    },
+  },
+};
+
 export function apiResponseSchema(data: SchemaObject): SchemaObject {  return {
     type: 'object',
     required: ['success', 'data'],
