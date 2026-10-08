@@ -98,6 +98,31 @@ export class BudgetsService {
     return budget;
   }
 
+  async calculateSpentAmount(
+    userId: string,
+    budget: { categoryId: string; startDate: Date; endDate: Date },
+  ): Promise<Prisma.Decimal> {
+    // Spending is always derived from the Transaction ledger, never stored
+    // on the Budget. PostgreSQL computes the SUM over DECIMAL(19,2) and
+    // Prisma returns a Decimal, so no JavaScript floating-point arithmetic
+    // is involved. Bounds are inclusive on both ends.
+    const result = await this.prisma.transaction.aggregate({
+      _sum: { amount: true },
+      where: {
+        userId,
+        type: 'EXPENSE',
+        categoryId: budget.categoryId,
+        transactionDate: {
+          gte: budget.startDate,
+          lte: budget.endDate,
+        },
+        deletedAt: null,
+      },
+    });
+
+    return result._sum.amount ?? new Prisma.Decimal(0);
+  }
+
   async update(userId: string, id: string, dto: UpdateBudgetDto) {
     const budget = await this.prisma.budget.findFirst({
       where: {

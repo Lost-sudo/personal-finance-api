@@ -6,7 +6,9 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { PrismaService } from '../../database/prisma.service.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { BudgetsService } from './budgets.service.js';
+import { buildBudgetProgress } from './budget-progress.util.js';
 import { CreateBudgetDto } from './dto/create-budget.dto.js';
 import { UpdateBudgetDto } from './dto/update-budget.dto.js';
 import { BudgetQueryDto } from './dto/budget-query.dto.js';
@@ -25,6 +27,9 @@ describe('BudgetsService', () => {
     },
     category: {
       findFirst: vi.fn(),
+    },
+    transaction: {
+      aggregate: vi.fn(),
     },
   };
 
@@ -364,6 +369,100 @@ describe('BudgetsService', () => {
       );
 
       expect(prismaMock.budget.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('calculateSpentAmount', () => {
+    const budgetWindow = {
+      categoryId,
+      startDate: new Date('2026-01-01T00:00:00.000Z'),
+      endDate: new Date('2026-01-31T23:59:59.000Z'),
+    };
+
+    it('should aggregate only the owner’s expense transactions in the category and date range', async () => {
+      prismaMock.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: new Prisma.Decimal('19.99') },
+      });
+
+      const result = await service.calculateSpentAmount(userId, budgetWindow);
+
+      expect(result).toEqual(new Prisma.Decimal('19.99'));
+      expect(prismaMock.transaction.aggregate).toHaveBeenCalledWith({
+        _sum: { amount: true },
+        where: {
+          userId,
+          type: 'EXPENSE',
+          categoryId,
+          transactionDate: {
+            gte: budgetWindow.startDate,
+            lte: budgetWindow.endDate,
+          },
+          deletedAt: null,
+        },
+      });
+    });
+
+    it('should return zero when no transactions match', async () => {
+      prismaMock.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
+
+      const result = await service.calculateSpentAmount(userId, budgetWindow);
+
+      expect(result).toEqual(new Prisma.Decimal(0));
+    });
+  });
+
+  describe('buildBudgetProgress', () => {
+    it('should derive remaining, percentage, and WITHIN status without float arithmetic', () => {
+      const progress = buildBudgetProgress(
+        { amount: new Prisma.Decimal('15000.00') },
+        new Prisma.Decimal('3750.50'),
+      );
+
+      expect(progress).toEqual({
+        spentAmount: '3750.50',
+        remainingAmount: '11249.50',
+        percentageUsed: '25.00',
+        status: 'WITHIN',
+      });
+    });
+
+    it('should report WITHIN at exactly 100% and OVER above it', () => {
+      const exact = buildBudgetProgress(
+        { amount: new Prisma.Decimal('100.00') },
+        new Prisma.Decimal('100.00'),
+      );
+
+      expect(exact.status).toBe('WITHIN');
+      expect(exact.remainingAmount).toBe('0.00');
+      expect(exact.percentageUsed).toBe('100.00');
+
+      const over = buildBudgetProgress(
+        { amount: new Prisma.Decimal('100.00') },
+        new Prisma.Decimal('120.75'),
+      );
+
+      expect(over).toEqual({
+        spentAmount: '120.75',
+        remainingAmount: '-20.75',
+        percentageUsed: '120.75',
+        status: 'OVER',
+      });
+    });
+
+    it('should handle zero spend', () => {
+      const progress = buildBudgetProgress(
+        { amount: new Prisma.Decimal('500.00') },
+        new Prisma.Decimal(0),
+      );
+
+      expect(progress).toEqual({
+        spentAmount: '0.00',
+        remainingAmount: '500.00',
+        percentageUsed: '0.00',
+        status: 'WITHIN',
+      });
     });
   });
 });
