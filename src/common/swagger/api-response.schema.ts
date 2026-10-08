@@ -341,6 +341,61 @@ export const recurringTransactionSchema: SchemaObject = {
   },
 };
 
+export const budgetSchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    userId: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    categoryId: {
+      type: 'string',
+      format: 'uuid',
+      example: '550e8400-e29b-41d4-a716-446655440000',
+    },
+    name: {
+      type: 'string',
+      example: 'January groceries',
+      maxLength: 100,
+    },
+    amount: {
+      type: 'string',
+      example: '15000.00',
+    },
+    period: {
+      type: 'string',
+      enum: ['WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM'],
+      example: 'MONTHLY',
+    },
+    startDate: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-01T00:00:00.000Z',
+    },
+    endDate: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-31T23:59:59.000Z',
+    },
+    createdAt: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-15T08:30:00.000Z',
+    },
+    updatedAt: {
+      type: 'string',
+      format: 'date-time',
+      example: '2026-01-15T08:30:00.000Z',
+    },
+  },
+};
+
 export function apiResponseSchema(data: SchemaObject): SchemaObject {  return {
     type: 'object',
     required: ['success', 'data'],

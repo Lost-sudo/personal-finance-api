@@ -14,6 +14,7 @@ import {
 import { DatabaseModule } from './database/database.module.js';
 import { GLOBAL_PREFIX } from './app.setup.js';
 import { CategoriesModule } from './modules/categories/categories.module.js';
+import { BudgetsModule } from './modules/budgets/budgets.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { TransactionsModule } from './modules/transactions/transactions.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
@@ -156,6 +157,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
     }),
     DatabaseModule,
     CategoriesModule,
+    BudgetsModule,
     AccountsModule,
     TransactionsModule,
     ReportsModule,
