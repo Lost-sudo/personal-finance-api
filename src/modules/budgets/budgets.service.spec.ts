@@ -344,6 +344,32 @@ describe('BudgetsService', () => {
         service.update(userId, 'budget-other', { name: 'x' }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should reject an update overlapping another budget', async () => {
+      const dto: UpdateBudgetDto = {
+        startDate: '2026-01-15T00:00:00.000Z',
+        endDate: '2026-02-15T23:59:59.000Z',
+      };
+
+      prismaMock.budget.findFirst
+        .mockResolvedValueOnce(storedBudget)
+        .mockResolvedValueOnce({ id: 'budget-2' });
+
+      await expect(service.update(userId, 'budget-1', dto)).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(prismaMock.budget.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId,
+          categoryId,
+          startDate: { lte: dto.endDate },
+          endDate: { gte: dto.startDate },
+          NOT: { id: 'budget-1' },
+        },
+      });
+      expect(prismaMock.budget.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('remove', () => {

@@ -5,6 +5,8 @@ import { createTransactionSchema } from '../../modules/transactions/dto/create-t
 import { updateTransactionSchema } from '../../modules/transactions/dto/update-transaction.dto.js';
 import { createAccountSchema } from '../../modules/accounts/dto/create-account.dto.js';
 import { createCategorySchema } from '../../modules/categories/dto/create-category.dto.js';
+import { createBudgetSchema } from '../../modules/budgets/dto/create-budget.dto.js';
+import { updateBudgetSchema } from '../../modules/budgets/dto/update-budget.dto.js';
 import { createRecurringTransactionSchema } from '../../modules/recurring-transactions/dto/create-recurring-transaction.dto.js';
 import { registerSchema } from '../../modules/auth/dto/register.dto.js';
 import { loginSchema } from '../../modules/auth/dto/login.dto.js';
@@ -30,6 +32,15 @@ const validTransaction = {
   accountId: UUID,
 };
 
+const validBudget = {
+  name: 'October Food Budget',
+  categoryId: UUID,
+  amount: 10000,
+  period: 'MONTHLY',
+  startDate: '2026-10-01T00:00:00.000Z',
+  endDate: '2026-10-31T23:59:59.000Z',
+};
+
 /**
  * Boundary audit: untrusted HTTP input must survive Zod before reaching
  * controllers. String money and unknown fields must never slip through.
@@ -49,6 +60,8 @@ describe('input validation boundary', () => {
         createCategorySchema,
         { name: 'Food', type: 'EXPENSE' },
       ],
+      ['createBudget', createBudgetSchema, validBudget],
+      ['updateBudget', updateBudgetSchema, { name: 'Updated budget' }],
       [
         'createRecurringTransaction',
         createRecurringTransactionSchema,
@@ -143,6 +156,80 @@ describe('input validation boundary', () => {
 
       expect(result.description).toBeUndefined();
       expect(result.categoryId).toBeUndefined();
+    });
+  });
+
+  describe('budgets', () => {
+    it.each([0, -1, 10.123, Number.NaN])(
+      'rejects non-positive or imprecise budget amount %p',
+      (amount: unknown) => {
+        rejects(createBudgetSchema)({ ...validBudget, amount });
+      },
+    );
+
+    it('rejects string budget amounts', () => {
+      rejects(createBudgetSchema)({ ...validBudget, amount: '10000.00' });
+    });
+
+    it.each(['WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM'])(
+      'accepts budget period %s',
+      (period: string) => {
+        const result = accepts(createBudgetSchema)({
+          ...validBudget,
+          period,
+        }) as { period: string };
+
+        expect(result.period).toBe(period);
+      },
+    );
+
+    it('rejects unknown budget periods', () => {
+      rejects(createBudgetSchema)({ ...validBudget, period: 'QUARTERLY' });
+    });
+
+    it.each(['', '  '])('rejects empty budget name %p', (name: unknown) => {
+      rejects(createBudgetSchema)({ ...validBudget, name });
+    });
+
+    it('rejects budget names exceeding 100 characters', () => {
+      rejects(createBudgetSchema)({ ...validBudget, name: 'a'.repeat(101) });
+    });
+
+    it('rejects malformed budget categoryIds', () => {
+      rejects(createBudgetSchema)({ ...validBudget, categoryId: 'not-a-uuid' });
+    });
+
+    it('rejects invalid budget datetimes', () => {
+      rejects(createBudgetSchema)({
+        ...validBudget,
+        startDate: 'tomorrow at noon',
+      });
+    });
+
+    it('rejects budget date ranges where startDate is not before endDate', () => {
+      rejects(createBudgetSchema)({
+        ...validBudget,
+        startDate: validBudget.endDate,
+        endDate: validBudget.startDate,
+      });
+    });
+
+    it('rejects empty budget updates', () => {
+      rejects(updateBudgetSchema)({});
+    });
+
+    it('rejects budget updates with an invalid partial date range', () => {
+      rejects(updateBudgetSchema)({
+        startDate: '2026-11-01T00:00:00.000Z',
+        endDate: '2026-10-01T00:00:00.000Z',
+      });
+    });
+
+    it('rejects userId smuggled into budget payloads', () => {
+      rejects(createBudgetSchema)({
+        ...validBudget,
+        userId: UUID,
+      });
     });
   });
 });
